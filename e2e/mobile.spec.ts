@@ -27,10 +27,12 @@ test('mobile layout: viewport, bottom toolbar and slide-out panels', async ({ pa
 });
 
 test('mobile landscape studio: stacked viewport and tabbed controls', async ({ page }) => {
+  test.setTimeout(150_000);
   await page.addInitScript(() => localStorage.setItem('shader-forge:settings', JSON.stringify({ state: { pixelRatio: 0.35 }, version: 1 })));
   await page.goto('./#/landscape');
   await expect(page.getByTestId('shader-canvas')).toBeVisible();
   await expect(page.getByTestId('scene-card').first()).toBeVisible();
+  await page.getByRole('button', { name: 'Pause' }).click();
   await page.getByRole('tab', { name: 'Sky' }).click();
   await page.getByRole('button', { name: 'Night' }).click();
   const v = await page.evaluate(() => JSON.parse(localStorage.getItem('shader-forge:landscape') ?? '{}').state.values.uSunElevation);

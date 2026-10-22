@@ -92,9 +92,12 @@ test.describe('landscape & waterscape studio', () => {
 });
 
 test('landscape studio: vegetation generator', async ({ page }) => {
+  test.setTimeout(150_000);
   await lowRes(page);
   await page.goto('./#/landscape');
   await expect(page.getByTestId('landscape')).toBeVisible();
+  // Paused, the viewport only redraws on changes (software GL starves the UI otherwise).
+  await page.getByRole('button', { name: 'Pause' }).click();
   const state = () => page.evaluate(() => JSON.parse(localStorage.getItem('shader-forge:landscape') ?? '{}').state);
   await page.getByRole('tab', { name: 'Vegetation' }).click();
   await page.getByTestId('biome-autumn').click();
@@ -183,6 +186,7 @@ test('landscape studio: elevation data from a GeoTIFF', async ({ page }) => {
   await page.goto('./#/landscape');
   await expect(page.getByTestId('landscape')).toBeVisible();
   const state = () => page.evaluate(() => JSON.parse(localStorage.getItem('shader-forge:landscape') ?? '{}').state);
+  await page.getByRole('button', { name: 'Pause' }).click();
   await page.getByRole('tab', { name: 'Elevation' }).click();
   await expect(page.getByTestId('elevation-panel')).toBeVisible();
   await expect(page.getByTestId('dem-place').first()).toBeVisible();
