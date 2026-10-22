@@ -2,20 +2,28 @@ import { useSyncExternalStore } from 'react';
 
 /**
  * Hash routing works on GitHub Pages without server rewrites:
- *   #/               workspace
- *   #/shader/<id>    workspace with a project
- *   #/gallery        variant gallery
- *   #/compare        A/B comparison
+ *   #/                  editor workspace
+ *   #/shader/<id>       editor with a project
+ *   #/gallery           variant gallery
+ *   #/compare           A/B comparison
+ *   #/view[/<id>]       simple full-screen viewer   (?slideshow=20&ui=off)
+ *   #/landscape         landscape & waterscape studio
  */
-export type Route = { view: 'workspace' | 'gallery' | 'compare'; shaderId?: string };
+export type View = 'workspace' | 'gallery' | 'compare' | 'view' | 'landscape';
+export type Route = { view: View; shaderId?: string; query: Record<string, string> };
 
 export function parseHash(hash: string): Route {
-  const h = hash.replace(/^#\/?/, '');
-  const [head, ...rest] = h.split('/');
-  if (head === 'gallery') return { view: 'gallery' };
-  if (head === 'compare') return { view: 'compare' };
-  if (head === 'shader' && rest.length) return { view: 'workspace', shaderId: decodeURIComponent(rest.join('/')) };
-  return { view: 'workspace' };
+  const raw = hash.replace(/^#\/?/, '');
+  const [path, qs = ''] = raw.split('?');
+  const query = Object.fromEntries(new URLSearchParams(qs));
+  const [head, ...rest] = path.split('/');
+  const id = rest.length && rest.join('/') ? decodeURIComponent(rest.join('/')) : undefined;
+  if (head === 'gallery') return { view: 'gallery', query };
+  if (head === 'compare') return { view: 'compare', query };
+  if (head === 'landscape') return { view: 'landscape', query };
+  if (head === 'view') return { view: 'view', shaderId: id, query };
+  if (head === 'shader' && id) return { view: 'workspace', shaderId: id, query };
+  return { view: 'workspace', query };
 }
 
 export function useHashRoute(): Route {
@@ -30,6 +38,8 @@ export function useHashRoute(): Route {
   return parseHash(hash);
 }
 
-export function navigate(view: Route['view'], shaderId?: string): void {
-  window.location.hash = view === 'workspace' ? (shaderId ? `#/shader/${encodeURIComponent(shaderId)}` : '#/') : `#/${view}`;
+export function navigate(view: View, shaderId?: string): void {
+  if (view === 'workspace') window.location.hash = shaderId ? `#/shader/${encodeURIComponent(shaderId)}` : '#/';
+  else if (view === 'view') window.location.hash = shaderId ? `#/view/${encodeURIComponent(shaderId)}` : '#/view';
+  else window.location.hash = `#/${view}`;
 }

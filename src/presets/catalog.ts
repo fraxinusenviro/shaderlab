@@ -14,6 +14,7 @@ import gltCrosswarp from './shaders/glt-crosswarp.glsl?raw';
 import gltRipple from './shaders/glt-ripple.glsl?raw';
 import inferno from './shaders/inferno.glsl?raw';
 import julia from './shaders/julia.glsl?raw';
+import landscape from './shaders/landscape.glsl?raw';
 import kaleido from './shaders/kaleido.glsl?raw';
 import lens from './shaders/lens.glsl?raw';
 import liquid from './shaders/liquid.glsl?raw';
@@ -66,10 +67,11 @@ export const PRESETS: PresetDef[] = [
   { id: 'mandelbrot', name: 'Mandelbrot Explorer', category: 'Fractals', description: 'Smooth-coloured Mandelbrot set with zoom, centre and palette controls.', tags: ['fractal', 'iterative', 'escape-time'], format: 'shadertoy', fragment: mandelbrot, ...SF },
   { id: 'julia', name: 'Julia Bloom', category: 'Fractals', description: 'Julia set whose constant orbits a circle; orbit traps add glow.', tags: ['fractal', 'julia', 'animated'], format: 'shadertoy', fragment: julia, ...SF },
   { id: 'terrain', name: 'Ridge Flyover', category: 'Terrain & Landscape', theme: 'Earth', description: 'Raymarched ridged-noise mountains with snow, fog and sun.', tags: ['terrain', 'raymarch', 'earth'], format: 'shadertoy', fragment: terrain, ...SF },
+  { id: 'landscape', name: 'Landscape Studio', category: 'Terrain & Landscape', theme: 'Earth', description: 'Procedural raymarched terrain and water: mountains, hills, islands, canyons, dunes; waves, foam, sky, clouds and a flyover camera. Also available as the dedicated Landscape studio.', tags: ['terrain', 'water', 'raymarch', 'landscape', 'ocean'], format: 'shadertoy', fragment: landscape, ...SF },
   { id: 'strata', name: 'Topographic Strata', category: 'Terrain & Landscape', theme: 'Earth', description: 'Contour-line map over warped noise (conventional GLSL ES 1.00 main()).', tags: ['terrain', 'contours', 'earth', 'standard'], format: 'standard', fragment: strata, ...SF },
   { id: 'turbulence', name: 'Domain Turbulence', category: 'Noise & Turbulence', description: 'Two-level domain-warped fBm with octave, lacunarity and gain controls.', tags: ['noise', 'fbm', 'warp'], format: 'shadertoy', fragment: turbulence, ...SF },
   { id: 'cells', name: 'Cellular Colony', category: 'Organic & Biological', description: 'Wobbling Voronoi cells with membranes and nuclei.', tags: ['voronoi', 'organic', 'cells'], format: 'shadertoy', fragment: cells, ...SF },
-  { id: 'caustics', name: 'Ocean Caustics', category: 'Water & Fluid', theme: 'Water', description: 'Shimmering pool-floor caustics from iterated sine warps.', tags: ['water', 'caustics', 'light'], format: 'shadertoy', fragment: caustics, ...SF },
+  { id: 'caustics', name: 'Ocean Caustics', category: 'Water & Fluid', theme: 'Water', description: 'Shimmering pool-floor caustics from the edges of drifting, warped Voronoi cells.', tags: ['water', 'caustics', 'light'], format: 'shadertoy', fragment: caustics, ...SF },
   { id: 'liquid', name: 'Liquid Marble', category: 'Water & Fluid', description: 'Iterative flow distortion producing marbled ink.', tags: ['fluid', 'distortion', 'marble'], format: 'shadertoy', fragment: liquid, ...SF },
   { id: 'plasma', name: 'Neon Plasma', category: 'Fire & Plasma', description: 'Classic sum-of-sines plasma written as a conventional main() shader.', tags: ['plasma', 'retro', 'standard'], format: 'standard', fragment: plasma, ...SF },
   { id: 'inferno', name: 'Inferno', category: 'Fire & Plasma', theme: 'Fire', description: 'Rising turbulent flames with core and edge colours.', tags: ['fire', 'flame', 'noise'], format: 'shadertoy', fragment: inferno, ...SF },

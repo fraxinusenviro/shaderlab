@@ -302,6 +302,13 @@ export function SettingsDialog() {
             </select>
           </Field>
           <Toggle checked={s.showStats} onChange={(v) => s.set({ showStats: v })} label="Show FPS / resolution overlay" />
+          <Field label="Start page" hint="What opens when you launch the app without a link.">
+            <select className="input" value={s.startPage} onChange={(e) => s.set({ startPage: e.target.value as typeof s.startPage })} data-testid="start-page">
+              <option value="workspace">Editor (full workstation)</option>
+              <option value="view">Viewer (simple full-screen)</option>
+              <option value="landscape">Landscape & waterscape studio</option>
+            </select>
+          </Field>
         </section>
         <section className="flex flex-col gap-3">
           <h3 className="label">Editing</h3>

@@ -18,6 +18,8 @@ export interface Settings {
   editorFontSize: number;
   compactControls: boolean;
   showStats: boolean;
+  /** Page shown when the app is opened without a route. */
+  startPage: 'workspace' | 'view' | 'landscape';
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -34,6 +36,7 @@ export const DEFAULT_SETTINGS: Settings = {
   editorFontSize: 13,
   compactControls: false,
   showStats: true,
+  startPage: 'workspace',
 };
 
 export const THUMB_SIZES: Record<Settings['thumbQuality'], [number, number]> = {

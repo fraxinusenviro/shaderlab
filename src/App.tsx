@@ -3,6 +3,10 @@ import { useEffect, useRef, useState } from 'react';
 import { useRegisterSW } from 'virtual:pwa-register/react';
 import { Resizer, Toasts } from './components/ui';
 import { navigate, parseHash, useHashRoute } from './hooks/useHashRoute';
+import { LandscapePage } from './landscape/LandscapePage';
+import { ViewerPage } from './viewer/ViewerPage';
+
+type EditorView = 'workspace' | 'gallery' | 'compare';
 import { useIsMobile } from './hooks/useMediaQuery';
 import { PRESETS, getPreset } from './presets/catalog';
 import { setAssetLoader } from './renderer/channels';
@@ -175,7 +179,7 @@ function Modals() {
   return null;
 }
 
-function DesktopLayout({ view }: { view: 'workspace' | 'gallery' | 'compare' }) {
+function DesktopLayout({ view }: { view: EditorView }) {
   const ui = useUI();
   const setW = (k: 'leftWidth' | 'rightWidth' | 'bottomHeight', v: number, min: number, max: number) => ui.set({ [k]: Math.min(max, Math.max(min, v)) });
   return (
@@ -230,7 +234,7 @@ function DesktopLayout({ view }: { view: 'workspace' | 'gallery' | 'compare' }) 
   );
 }
 
-function MobileLayout({ view }: { view: 'workspace' | 'gallery' | 'compare' }) {
+function MobileLayout({ view }: { view: EditorView }) {
   const panel = useUI((s) => s.mobilePanel);
   const set = useUI((s) => s.set);
   const projectId = useWorkspace((s) => s.project?.id);
@@ -323,7 +327,10 @@ export default function App() {
     if (booted.current) return;
     booted.current = true;
     exposeTestHooks();
-    void boot(route.shaderId)
+    // Honour the configured start page when the app is opened without a route.
+    const start = useSettings.getState().startPage;
+    if (!window.location.hash.replace(/^#\/?/, '') && start !== 'workspace') window.location.hash = `#/${start}`;
+    void boot(route.view === 'workspace' ? route.shaderId : undefined)
       .catch((e) => toast('error', `Startup problem: ${(e as Error).message}`))
       .finally(() => setReady(true));
     void requestPersistentStorage();
@@ -352,6 +359,16 @@ export default function App() {
     return () => window.removeEventListener('hashchange', onHash);
   }, [ready]);
 
+  if (route.view === 'view' || route.view === 'landscape') {
+    return (
+      <div className="h-full">
+        {route.view === 'view' ? <ViewerPage /> : <LandscapePage />}
+        <Toasts />
+        <UpdatePrompt />
+      </div>
+    );
+  }
+
   return (
     <div
       className="flex h-full flex-col"
@@ -371,7 +388,7 @@ export default function App() {
     >
       <TopBar mobile={isMobile} />
       <RecoveredBanner />
-      {isMobile ? <MobileLayout view={route.view} /> : <DesktopLayout view={route.view} />}
+      {isMobile ? <MobileLayout view={route.view as EditorView} /> : <DesktopLayout view={route.view as EditorView} />}
       <Modals />
       <Toasts />
       <UpdatePrompt />

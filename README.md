@@ -4,6 +4,16 @@ Shader Forge is an installable, offline-capable Progressive Web App for authorin
 
 **Workflow:** Select / Import → Render → Tweak → Mutate → Compare → Save → Export
 
+Three ways in:
+
+| Mode | URL | For |
+| --- | --- | --- |
+| **Editor** | `#/` · `#/shader/<id>` | The full workstation: library, code, controls, mutation lab, history, export. |
+| **Viewer** | `#/view` · `#/view/<id>` | Simply watching shaders full-screen — browse, play/pause, shuffle, slideshow, snapshot. |
+| **Landscape & Waterscape studio** | `#/landscape` | Generating procedural terrain and water scenes with purpose-built controls. |
+
+Choose which one opens at launch in *Settings → Start page*; installed PWAs also get *Viewer* and *Landscape studio* app shortcuts.
+
 - Production URL (once Pages is enabled): `https://fraxinusenviro.github.io/shaderlab/`
 
 ---
@@ -26,6 +36,8 @@ Shader Forge is an installable, offline-capable Progressive Web App for authorin
 | **Library** | IndexedDB (Dexie) storage; bundled presets clearly separated and read-only; search, categories, Earth/Air/Fire/Water/Geometry themes, favourites, folders, collections, rename, duplicate, delete; thumbnails; autosave and crash recovery of the working copy. |
 | **Import / export** | Import `.glsl .frag .fs .vert .vs .txt` (a `.frag`+`.vert` pair with the same name is combined), project `.json`, project `.zip`, full-library backup `.zip`; paste into the editor; drag-and-drop. Export GLSL, project JSON, project ZIP (with assets, thumbnail, original source, attribution), parameter/mutation metadata, PNG at arbitrary resolution (rendered offscreen), and WebM (or MP4 where the browser supports it) via `MediaRecorder`. |
 | **PWA** | Installable; app shell and bundled presets precached by Workbox; works offline after the first visit; update prompt that never touches user data. |
+| **Viewer** | Full-screen canvas with auto-hiding controls: shader picker (presets + My shaders), previous/next, play/pause/restart, shuffle parameters, optional parameter drawer, slideshow (10–60 s), info card with author/licence, PNG snapshot, fullscreen, and *Edit* to open the shader (with any tweaks) in the editor. Keyboard: ← → Space R I F. Kiosk/embedding: `#/view/<id>?slideshow=20&ui=off`. |
+| **Landscape & Waterscape studio** | Built on the original *Landscape Studio* raymarched shader: five terrain types (mountains, rolling hills, archipelago, canyons, dunes), world seed, relief, roughness, octaves, snow line, vegetation; water level, waves, clarity, shoreline foam and colours; sun elevation/direction with night sky and stars, clouds, haze; flyover camera (altitude, pitch, heading, speed, lens, drag-to-look) and Draft/Balanced/High quality. Nine scene presets with thumbnails (alpine lake, tropical archipelago, desert canyon, dune sea, stormy coast, fjord at dusk, rolling hills, open ocean, moonlit tarn); *New world*, *Landscape*, *Waterscape* and *Vary* generators; one-click water bodies, times of day and camera shots; undo; settings persist per browser; PNG export up to 4K; *Save* to My shaders; *Open in editor* for code, mutation and video export. Works on WebGL 1 and 2. |
 | **UI** | Dark (default) and light themes; resizable/collapsible panels; mobile layout with full-screen viewport, slide-out library/controls/code drawers, a bottom action bar and enlarged touch targets; keyboard shortcuts. |
 
 ---
@@ -85,6 +97,8 @@ src/
   mutations/    Seeded RNG, semantic categories, Level 1/2/3 mutators, deterministic variant generation
   modulation/   Oscillators, keyframes, links; safe expression compiler (AST, whitelist, no eval)
   presets/      Bundled GLSL (shaders/*.glsl), catalogue with licence metadata, File→New templates
+  viewer/       Simple full-screen Viewer page
+  landscape/    Landscape & Waterscape studio: scene presets, world generators, persisted store, page
   storage/      Dexie schema, ProjectRepository interface + LocalRepository, validation, JSON/ZIP import-export
   state/        Zustand stores: workspace (project, compile, undo, history, autosave), library, lab, ui, settings
   editor/       CodeMirror 6 GLSL editor with diagnostics
@@ -127,9 +141,9 @@ Keys: `min max step default label group widget (slider|number|toggle|select|colo
 
 ## Bundled presets and licensing
 
-23 presets cover fractals, terrain, noise, organic, water, fire/plasma, clouds/atmosphere, geometry/symmetry, ray marching/SDF, particles, abstract art and image processing/transitions, with Earth, Air, Fire, Water and Geometry themes.
+24 presets cover fractals, terrain, noise, organic, water, fire/plasma, clouds/atmosphere, geometry/symmetry, ray marching/SDF, particles, abstract art and image processing/transitions, with Earth, Air, Fire, Water and Geometry themes.
 
-- **19 are original Shader Forge works (MIT).**
+- **20 are original Shader Forge works (MIT)**, including the *Landscape Studio* shader behind the landscape studio.
 - **3 GL Transitions** (*crosswarp* by Eke Péter, *ripple* and *circleopen* by gre) — MIT, verified from each file header and the repository LICENSE; bundled verbatim with a source-URL comment.
 - **1 Radiant shader** (*Fluid Amber* by Paul Bakaus) — MIT (repository LICENSE); a WebGL (not Canvas 2D) shader extracted from its HTML page with `@param` annotations added. Its simplex noise follows Ashima Arts / Stefan Gustavson's MIT webgl-noise.
 
@@ -147,8 +161,8 @@ Sources investigated but **not** bundled:
 
 | Suite | Command | Scope |
 | --- | --- | --- |
-| Unit (Vitest) | `npm test` | Tokenizer losslessness; format detection; wrapper generation and line mapping; WebGL1/2 version handling; ES1→ES3 upgrade; log parsing (user vs wrapper); annotation parsing and inference; param merge; constant discovery exclusions; promote/demote exact round-trip; L1/L2/L3 determinism, locks, categories, scope, loop-header safety; variant reproducibility; expression whitelist; oscillators; keyframes; links; preset licence metadata; IndexedDB repository (fake-indexeddb); JSON / project-ZIP / library-backup round-trips; frag+vert pairing; input validation. |
-| E2E (Playwright, Chromium/SwiftShader) | `npm run test:e2e` | Production build served under `/shaderlab/`: manifest and icons resolve; service worker scope; all presets compile; presets render non-black; paste & compile; compile error keeps the last image and maps to the right line; revert; slider changes pixels; fixed-seed variants identical; 3×3 gallery renders; invalid mutation never replaces the shader; mutate + undo; save → reload persistence; session recovery after an interrupted session; export JSON → import preserves params, provenance and history; raw `.frag` import unchanged; offline reload after first visit; mobile layout (bottom bar, drawers, ≥30 px slider touch targets). |
+| Unit (Vitest) | `npm test` | Landscape parameters, scene validity and ranges, reproducible world generation; viewer/landscape routes; tokenizer losslessness; format detection; wrapper generation and line mapping; WebGL1/2 version handling; ES1→ES3 upgrade; log parsing (user vs wrapper); annotation parsing and inference; param merge; constant discovery exclusions; promote/demote exact round-trip; L1/L2/L3 determinism, locks, categories, scope, loop-header safety; variant reproducibility; expression whitelist; oscillators; keyframes; links; preset licence metadata; IndexedDB repository (fake-indexeddb); JSON / project-ZIP / library-backup round-trips; frag+vert pairing; input validation. |
+| E2E (Playwright, Chromium/SwiftShader) | `npm run test:e2e` | Production build served under `/shaderlab/`: viewer (browse, picker, parameter drawer, shuffle, kiosk mode, Edit → editor, start-page setting); landscape studio (scenes, grouped controls, water presets, terrain type, New world, persistence, Save to library, Open in editor; mobile tabs); manifest and icons resolve; service worker scope; all presets compile; presets render non-black; paste & compile; compile error keeps the last image and maps to the right line; revert; slider changes pixels; fixed-seed variants identical; 3×3 gallery renders; invalid mutation never replaces the shader; mutate + undo; save → reload persistence; session recovery after an interrupted session; export JSON → import preserves params, provenance and history; raw `.frag` import unchanged; offline reload after first visit; mobile layout (bottom bar, drawers, ≥30 px slider touch targets). |
 
 See [`TESTING.md`](TESTING.md) for the latest recorded results and manual verification checklist.
 
@@ -162,6 +176,7 @@ See [`TESTING.md`](TESTING.md) for the latest recorded results and manual verifi
 - **Remote sync** is not implemented; data lives in one browser's IndexedDB. Download backups regularly (Settings → *Download full backup*).
 - **Panel docking** is limited to resizing and collapsing; panels cannot be rearranged.
 - **Level 2/3 mutations** are token-based, not a full GLSL AST; they are compile-validated, but may produce valid-yet-uninteresting results. Self-blend is available for Shadertoy and GL Transition formats only; coordinate transforms on `main()` shaders need a resolution uniform.
+- **Landscape studio**: water reflects the sky only (not the terrain), and the camera follows the ground with a simple look-ahead, so very fast flights over steep peaks can graze terrain. It is a heavy raymarcher: use *Draft* quality or a lower preview resolution on weak GPUs.
 - **Expressions/keyframes** apply to scalar parameters (vectors are modulated component-wise by oscillators only).
 - **WebGL 1**: GLSL ES 3.00 shaders (e.g. the *Truchet Weave* preset) cannot run and show an explanation instead.
 - The **viewport zoom/pan** is a visual inspection zoom of the rendered image, not a change to shader coordinates.

@@ -1,4 +1,4 @@
-import { Columns2, Download, FilePlus2, FlaskConical, FolderOpen, Keyboard, LayoutGrid, Menu, Moon, Redo2, Save, SaveAll, Settings, Sun, Undo2 } from 'lucide-react';
+import { Columns2, Download, Eye, Mountain, FilePlus2, FlaskConical, FolderOpen, Keyboard, LayoutGrid, Menu, Moon, Redo2, Save, SaveAll, Settings, Sun, Undo2 } from 'lucide-react';
 import { useRef } from 'react';
 import { navigate, useHashRoute } from '../hooks/useHashRoute';
 import { useLibrary } from '../state/library';
@@ -106,6 +106,15 @@ export function TopBar({ mobile = false }: { mobile?: boolean }) {
         </nav>
       )}
       <div className="ml-auto flex items-center gap-0.5">
+        <button className="btn btn-ghost px-2" onClick={() => navigate('view', projectId)} title="Simple full-screen viewer" aria-label="Viewer" data-testid="btn-viewer">
+          <Eye size={15} />
+          <span className="hidden lg:inline">Viewer</span>
+        </button>
+        <button className="btn btn-ghost px-2" onClick={() => navigate('landscape')} title="Landscape & waterscape studio" aria-label="Landscape studio" data-testid="btn-landscape">
+          <Mountain size={15} />
+          <span className="hidden lg:inline">Landscape</span>
+        </button>
+        <div className="mx-1 h-5 w-px bg-line" />
         {mobile && (
           <button className="btn-icon" onClick={() => fileRef.current?.click()} aria-label="Import">
             <FolderOpen size={16} />
