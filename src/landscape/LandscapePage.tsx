@@ -14,6 +14,7 @@ import { randomSeed } from '../mutations/rng';
 import { getPreset } from '../presets/catalog';
 import { Clock } from '../renderer/clock';
 import type { ShaderRenderer } from '../renderer/engine';
+import type { ChannelBinding } from '../types/shader';
 import { requestThumbnail } from '../renderer/offscreen';
 import { useLibrary } from '../state/library';
 import { useSettings } from '../state/settings';
@@ -23,11 +24,12 @@ import { forkProject, projectFromPreset } from '../storage/project';
 import { repository } from '../storage/repository';
 import { downloadBlob, imageDataToBlob, safeFilename } from '../utils/download';
 import { BIOMES, randomBiome } from './biomes';
+import { ElevationPanel } from './ElevationPanel';
 import { LANDSCAPE_SCENES, type LandscapeScene } from './scenes';
 import { paramDef, randomWorld, RENDER_MODES, renderMode, sceneValues, useLandscape, varyWorld, type RenderMode } from './store';
 
-type Tab = 'scenes' | 'Terrain' | 'Vegetation' | 'Blocks' | 'Water' | 'Sky' | 'Camera';
-const GROUP_COLORS: Record<string, string> = { Vegetation: '#22c55e', Blocks: '#f97316', Terrain: '#a3e635', Water: '#38bdf8', Sky: '#fbbf24', Camera: '#c084fc' };
+type Tab = 'scenes' | 'Terrain' | 'Elevation' | 'Vegetation' | 'Blocks' | 'Water' | 'Sky' | 'Camera';
+const GROUP_COLORS: Record<string, string> = { Elevation: '#eab308', Vegetation: '#22c55e', Blocks: '#f97316', Terrain: '#a3e635', Water: '#38bdf8', Sky: '#fbbf24', Camera: '#c084fc' };
 
 const thumbCache = new Map<string, string>();
 
@@ -79,12 +81,15 @@ function QuickRow({ label, items }: { label: string; items: { label: string; onC
   );
 }
 
+// Data-derived uniforms are set from the loaded DEM, not edited by hand.
+const HIDDEN_FIELDS = ['uTerrainSource', 'uDemMin', 'uDemMax', 'uDemSizeM', 'uDemAspect'];
+
 function GroupControls({ group }: { group: Exclude<Tab, 'scenes'> }) {
   const values = useLandscape((s) => s.values);
   const set = useLandscape((s) => s.set);
   const setMany = useLandscape((s) => s.setMany);
   const mode = useLandscape((s) => s.mode);
-  const defs = renderMode(mode).params.filter((d) => d.group === group);
+  const defs = renderMode(mode).params.filter((d) => d.group === group && !HIDDEN_FIELDS.includes(d.name));
   const h = values.uHeight as number;
   const wl = values.uWaterLevel as number;
   const se = values.uSunElevation as number;
@@ -111,6 +116,8 @@ function GroupControls({ group }: { group: Exclude<Tab, 'scenes'> }) {
           { label: 'Night', onClick: () => setMany({ uSunElevation: -0.12 }), active: se < 0 },
         ]}
       />
+    ) : group === 'Elevation' ? (
+      <ElevationPanel />
     ) : group === 'Vegetation' ? (
       <div className="flex flex-col gap-2">
         <div className="label">Biome</div>
@@ -192,6 +199,9 @@ export function LandscapePage() {
   const setMode = useLandscape((s) => s.setMode);
   const shader = renderMode(mode);
   const preset = getPreset(shader.presetId)!;
+  const dem = useLandscape((s) => s.dem);
+  const usingDem = values.uTerrainSource === 1 && !!dem;
+  const channels = useMemo<ChannelBinding[]>(() => (usingDem && dem ? [{ assetId: dem.assetId, filter: 'nearest', wrap: 'clamp' }] : []), [usingDem, dem]);
 
   const togglePlay = () => {
     if (clock.playing) clock.pause();
@@ -210,6 +220,11 @@ export function LandscapePage() {
   const project = () => {
     const base = projectFromPreset(preset);
     base.values = { ...base.values, ...values };
+    if (channels.length) base.channels = [...channels, ...base.channels.slice(1)];
+    if (usingDem && dem) {
+      base.description = `${base.description}\nTerrain: ${dem.label} (${dem.source}).`;
+      base.provenance = { ...base.provenance, notice: `${base.provenance.notice ?? ''}\n\nElevation data: ${dem.attribution}`.trim() };
+    }
     return base;
   };
   const save = async () => {
@@ -238,7 +253,7 @@ export function LandscapePage() {
     else void el?.requestFullscreen?.().catch(() => toast('warn', 'Fullscreen is not available here.'));
   };
 
-  const groupTabs: Tab[] = mode === 'blocks' ? ['Terrain', 'Vegetation', 'Blocks', 'Water', 'Sky', 'Camera'] : ['Terrain', 'Vegetation', 'Water', 'Sky', 'Camera'];
+  const groupTabs: Tab[] = mode === 'blocks' ? ['Terrain', 'Elevation', 'Vegetation', 'Blocks', 'Water', 'Sky', 'Camera'] : ['Terrain', 'Elevation', 'Vegetation', 'Water', 'Sky', 'Camera'];
   const tabs: Tab[] = mobile ? ['scenes', ...groupTabs] : groupTabs;
   const activeTab: Tab = tabs.includes(tab) ? tab : tabs[mobile ? 1 : 0];
   const scenes = (
@@ -273,6 +288,7 @@ export function LandscapePage() {
         fragment={shader.source}
         format="shadertoy"
         params={shader.params}
+        channels={channels}
         values={values}
         clock={clock}
         pixelRatio={res}

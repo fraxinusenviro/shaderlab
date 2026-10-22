@@ -8,7 +8,7 @@ import { BIOMES, randomBiome, VEGETATION_PARAMS } from '../landscape/biomes';
 describe('landscape shader parameters', () => {
   it('exposes grouped terrain / water / sky / camera controls', () => {
     const groups = new Set(LANDSCAPE_PARAMS.map((d) => d.group));
-    expect([...groups].sort()).toEqual(['Camera', 'Sky', 'Terrain', 'Vegetation', 'Water']);
+    expect([...groups].sort()).toEqual(['Camera', 'Elevation', 'Sky', 'Terrain', 'Vegetation', 'Water']);
     expect(paramDef('uStyle')!.options!.map((o) => o.label)).toEqual(['Mountains', 'Rolling hills', 'Archipelago', 'Canyons', 'Dunes']);
     for (const k of [...WORLD_PARAMS, ...CAMERA_PARAMS]) expect(paramDef(k), k).toBeDefined();
   });

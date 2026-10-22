@@ -8,7 +8,7 @@ Environment: Node 22.22, Chromium (Playwright 1.56, SwiftShader software WebGL),
 | --- | --- | --- |
 | TypeScript | `npm run typecheck` | ✅ no errors |
 | ESLint | `npm run lint` | ✅ no errors or warnings |
-| Unit tests | `npm test` | ✅ 89 / 89 passed (7 files) |
+| Unit tests | `npm test` | ✅ 121 / 121 passed |
 | Production build at `/shaderlab/` | `BASE_PATH=/shaderlab/ npm run build` | ✅ built; Workbox precache of 17 entries (~1.7 MB) |
 | End-to-end smoke | `npm run test:e2e` | ✅ 21 / 21 passed (19 desktop, 2 mobile/Pixel 7) |
 
@@ -18,6 +18,7 @@ Additional manual/scripted verification during development:
 - Screenshots reviewed for: desktop workspace, compile-error banner + console, 3×3 L1–L3 variant gallery (all 9 variants compiled), A/B compare, mutation history tree, constants promotion, modulation, keyframe timeline, export dialog, light theme, and mobile (viewport, controls drawer, code drawer).
 - The Landscape Studio shader was rendered for all nine scenes under WebGL 2 and WebGL 1 and the screenshots reviewed; scene values were tuned (camera placement, night lighting and stars, dune shape, shoreline foam) from those renders.
 - The Block World (voxel) shader was rendered for all nine scenes under WebGL 2 and WebGL 1 and reviewed; water tinting, beach placement and desert sand were tuned from those renders, and tree lookup was reduced to one candidate per 5×5 cell.
+- Elevation data: CanElevation loads were checked live in a browser harness for HRDEM sites (Chéticamp 2 m, Halifax 1 m, Mont Royal 1 m, Hautes-Gorges 2 m, Percé 1 m) and MRDEM fall-back sites (Banff, North Shore BC, Gros Morne, Cape Split, Niagara), rendered in Realistic (natural and hypsometric + contours) and Blocks styles and reviewed. Automated tests use a synthetic float32 EPSG:3979 GeoTIFF (no network): unit tests cover the Lambert projection against the STAC tile bounds, height encoding, resampling, overview choice and auto-fit; an e2e test uploads the GeoTIFF through the Elevation tab and opens the result in the editor.
 - Found and fixed via e2e: a stale hash route re-opened the previous shader after a library click; React selector returning fresh arrays caused a render loop.
 
 ## Deployment status

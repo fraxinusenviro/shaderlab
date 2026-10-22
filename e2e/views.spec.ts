@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { float32GeoTiff } from './geotiff';
 import { lowRes, waitFor, ws } from './helpers';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -174,4 +175,37 @@ test.describe('fractal zoom', () => {
     await expect(page.getByTestId('fractal-readout')).toContainText('-0.77467244693567380804611717');
     await expect(page.getByTestId('fractal-readout')).not.toContainText('computing', { timeout: 30_000 });
   });
+});
+
+test('landscape studio: elevation data from a GeoTIFF', async ({ page }) => {
+  test.setTimeout(150_000);
+  await lowRes(page);
+  await page.goto('./#/landscape');
+  await expect(page.getByTestId('landscape')).toBeVisible();
+  const state = () => page.evaluate(() => JSON.parse(localStorage.getItem('shader-forge:landscape') ?? '{}').state);
+  await page.getByRole('tab', { name: 'Elevation' }).click();
+  await expect(page.getByTestId('elevation-panel')).toBeVisible();
+  await expect(page.getByTestId('dem-place').first()).toBeVisible();
+  // A synthetic 80 x 60 projected (EPSG:3979) DEM: a ridge rising from the sea.
+  const w = 80, h = 60;
+  const values = Float32Array.from({ length: w * h }, (_, i) => {
+    const x = i % w, y = Math.floor(i / w);
+    return Math.max(-5, 400 * Math.exp(-(((x - 40) / 18) ** 2) - (((y - 30) / 14) ** 2)) - 5);
+  });
+  values[0] = -32767;
+  const buffer = Buffer.from(float32GeoTiff(values, w, h, 10, 2700000, 300000, '-32767'));
+  await page.locator('input[type="file"][accept*="tif"]').setInputFiles({ name: 'ridge.tif', mimeType: 'image/tiff', buffer });
+  await expect(page.getByTestId('dem-info')).toContainText('ridge.tif', { timeout: 30_000 });
+  await expect(page.getByTestId('source-dem')).toHaveAttribute('aria-checked', 'true');
+  await expect.poll(async () => (await state()).values.uTerrainSource).toBe(1);
+  const s = await state();
+  expect(s.dem.sizeM[0]).toBeCloseTo(800, 0);
+  expect(s.dem.max).toBeGreaterThan(380);
+  expect(s.values.uCamMode).toBe(1);
+  // The DEM texture is persisted and rendered through the landscape shader.
+  await page.getByTestId('landscape-edit').click();
+  await expect(page.getByTestId('code-editor')).toBeVisible();
+  await waitFor(page, () => (window as any).__shaderForge.workspace.getState().compile.status === 'ok', undefined, 60_000);
+  expect(await ws(page, 'ws.project.values.uTerrainSource')).toBe(1);
+  expect(await ws(page, 'ws.project.channels?.[0]?.assetId ?? null')).toMatch(/^dem_/);
 });

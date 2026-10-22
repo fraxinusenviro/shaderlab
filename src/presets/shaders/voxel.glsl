@@ -44,6 +44,17 @@ uniform float uHeading;      // @param widget=angle default=0.3 min=0 max=6.2832
 uniform float uFlySpeed;     // @param default=0.4 min=0 max=3 step=0.01 label="Flight speed" group=Camera
 uniform float uFov;          // @param default=1.4 min=0.6 max=3 step=0.01 label="Lens (focal length)" group=Camera
 uniform int uQuality;        // @param options="Draft:0,Balanced:1,High:2" default=1 label="Render quality" group=Camera
+uniform int uTerrainSource;  // @param options="Procedural:0,Elevation data:1" default=0 label="Terrain source" group=Elevation
+uniform float uDemMin;       // @param default=0 min=-500 max=9000 step=0.1 label="Data minimum (m)" group=Elevation
+uniform float uDemMax;       // @param default=100 min=-500 max=9000 step=0.1 label="Data maximum (m)" group=Elevation
+uniform float uDemSizeM;     // @param default=10000 min=50 max=1000000 step=1 label="Data width (m)" group=Elevation
+uniform float uDemAspect;    // @param default=1 min=0.1 max=10 step=0.001 label="Data height/width" group=Elevation
+uniform float uDemSpan;      // @param default=14 min=3 max=40 step=0.1 label="Model size" group=Elevation
+uniform float uDemExaggeration; // @param default=2 min=0.25 max=12 step=0.05 label="Vertical exaggeration" group=Elevation
+uniform int uDemColor;       // @param options="Natural:0,Hypsometric:1,Greyscale:2" default=0 label="Colouring" group=Elevation
+uniform float uContours;     // @param default=0 min=0 max=500 step=1 label="Contour interval (m, 0 = off)" group=Elevation
+uniform int uCamMode;        // @param options="Flyover:0,Orbit:1" default=0 label="Camera path" group=Camera
+uniform float uOrbitRadius;  // @param default=9 min=1 max=40 step=0.1 label="Orbit radius" group=Camera
 
 // ---------------------------------------------------------------- noise
 
@@ -81,7 +92,57 @@ float fbm5(vec2 p) {
 
 // ---------------------------------------------------------------- terrain
 
+
+// ---------------------------------------------------------------- elevation data
+// iChannel0 holds the DEM: R,G = 16-bit height normalised to [uDemMin, uDemMax],
+// B = valid mask. World +z is north; the model spans uDemSpan units east-west.
+
+float demScale() { return (uDemMax - uDemMin) / uDemSizeM * uDemSpan * uDemExaggeration; }
+
+float demTexel(vec2 ij, vec2 res, out float valid) {
+  vec4 t = texture(iChannel0, (clamp(ij, vec2(0.0), res - 1.0) + 0.5) / res);
+  valid = step(0.5, t.b);
+  return (floor(t.r * 255.0 + 0.5) * 256.0 + floor(t.g * 255.0 + 0.5)) / 65535.0;
+}
+
+// Normalised height (0..1) with manual bilinear filtering; -1 = no data.
+float demSample(vec2 uv) {
+  vec2 res = max(iChannelResolution[0].xy, vec2(2.0));
+  vec2 f = uv * res - 0.5;
+  vec2 i = floor(f);
+  vec2 t = f - i;
+  float v00, v10, v01, v11;
+  float h00 = demTexel(i, res, v00);
+  float h10 = demTexel(i + vec2(1.0, 0.0), res, v10);
+  float h01 = demTexel(i + vec2(0.0, 1.0), res, v01);
+  float h11 = demTexel(i + vec2(1.0, 1.0), res, v11);
+  vec4 w = vec4((1.0 - t.x) * (1.0 - t.y), t.x * (1.0 - t.y), (1.0 - t.x) * t.y, t.x * t.y) * vec4(v00, v10, v01, v11);
+  float ws = w.x + w.y + w.z + w.w;
+  if (ws < 0.25) return -1.0;
+  return (h00 * w.x + h10 * w.y + h01 * w.z + h11 * w.w) / ws;
+}
+
+float demHeight(vec2 xz) {
+  vec2 span = vec2(uDemSpan, uDemSpan * uDemAspect);
+  vec2 uv = xz / span + 0.5;
+  vec2 outside = max(max(-uv, uv - 1.0), 0.0) * span;
+  float h = demSample(clamp(uv, 0.0, 1.0));
+  float base = -0.04 * uDemSpan / 14.0;
+  float world = h < 0.0 ? base : h * demScale();
+  // Beyond the data the terrain continues from its edge and eases down to a base plane.
+  return mix(world, base - 0.1, smoothstep(0.0, 2.5, max(outside.x, outside.y)));
+}
+
+float demElevation(float worldY) {
+  return uDemMin + worldY / max(1e-6, uDemSpan * uDemExaggeration) * uDemSizeM;
+}
+
+float terrainTop() {
+  return uTerrainSource == 1 ? demScale() : uHeight * 1.5;
+}
+
 float terrain(vec2 xz) {
+  if (uTerrainSource == 1) return demHeight(xz);
   vec2 p = xz * 0.35 / uScale + vec2(uSeed * 7.31, uSeed * 3.17);
   float h;
   if (uStyle == 0) {
@@ -346,7 +407,7 @@ Hit traceBlocks(vec3 ro, vec3 rd, int maxSteps, bool trees, bool stopAtWater) {
   h.waterT = -1.0;
   h.waterN = vec3(0.0, 1.0, 0.0);
   rd = vec3(abs(rd.x) < 1e-5 ? 1e-5 : rd.x, abs(rd.y) < 1e-5 ? 1e-5 : rd.y, abs(rd.z) < 1e-5 ? 1e-5 : rd.z);
-  float ceilingY = (uHeight * 1.5) / uBlockSize + 13.0;
+  float ceilingY = terrainTop() / uBlockSize + 13.0;
   float t0 = 0.0;
   // Skip empty space above the tallest possible terrain.
   if (ro.y > ceilingY) {
@@ -435,6 +496,19 @@ vec3 shadeBlock(Hit h, vec3 ro, vec3 rd, vec3 sd, vec3 sc) {
   vec3 p = ro + rd * h.t;
   vec2 uv = faceUV(p - h.n * 0.001, h.n);
   vec3 alb = blockTexture(h.m, h.cell, h.n, uv);
+  if (uTerrainSource == 1 && h.m != M_LEAVES && h.m != M_SPRUCE && h.m != M_WOOD && h.m != M_CACTUS) {
+    float e = demElevation((h.cell.y + 1.0) * uBlockSize);
+    if (uDemColor > 0) {
+      float t = clamp((e - uDemMin) / max(1e-3, uDemMax - uDemMin), 0.0, 1.0);
+      vec3 hyp = mix(mix(vec3(0.2, 0.5, 0.25), vec3(0.85, 0.78, 0.45), smoothstep(0.2, 0.55, t)), vec3(0.95), smoothstep(0.8, 1.0, t));
+      alb = (uDemColor == 1 ? hyp : vec3(0.72)) * (0.85 + 0.15 * alb.g / max(0.01, (alb.r + alb.g + alb.b) / 3.0));
+    }
+    if (uContours > 0.0) {
+      // Darken the block layer that crosses each contour elevation.
+      float eBelow = demElevation(h.cell.y * uBlockSize);
+      if (floor(e / uContours) != floor(eBelow / uContours)) alb *= 0.45;
+    }
+  }
   // Classic per-face shading plus sun light.
   float face = h.n.y > 0.5 ? 1.0 : h.n.y < -0.5 ? 0.5 : abs(h.n.x) > 0.5 ? 0.8 : 0.68;
   float dif = max(dot(h.n, sd), 0.0);
@@ -470,6 +544,13 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
   float heading = uHeading + look;
   vec2 dir = vec2(sin(uHeading), cos(uHeading));
   vec2 camXZ = dir * iTime * uFlySpeed;
+  if (uCamMode == 1) {
+    // Orbit around the model centre, looking at it.
+    float a = uHeading + iTime * uFlySpeed * 0.12;
+    camXZ = -vec2(sin(a), cos(a)) * uOrbitRadius;
+    dir = vec2(sin(a), cos(a));
+    heading = a + look;
+  }
   float ground = max(max(terrain(camXZ), terrain(camXZ + dir * 1.2)), uWaterLevel);
   vec3 roW = vec3(camXZ.x, ground + uAltitude + uBlockSize * 2.0, camXZ.y);
   vec3 fw = normalize(vec3(sin(heading), pitch, cos(heading)));
