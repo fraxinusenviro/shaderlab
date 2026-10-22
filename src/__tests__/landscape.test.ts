@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { valuesEqualType } from '../params/parse';
 import { CAMERA_PARAMS, LANDSCAPE_SCENES, WORLD_PARAMS } from '../landscape/scenes';
-import { LANDSCAPE_DEFAULTS, LANDSCAPE_PARAMS, paramDef, randomWorld, sceneValues, varyWorld } from '../landscape/store';
+import { LANDSCAPE_DEFAULTS, LANDSCAPE_PARAMS, paramDef, randomWorld, sceneValues, STUDIO_DEFAULTS, varyWorld, VOXEL_PARAMS } from '../landscape/store';
 import { parseHash } from '../hooks/useHashRoute';
 
 describe('landscape shader parameters', () => {
@@ -23,7 +23,7 @@ describe('landscape shader parameters', () => {
       }
     }
     const all = sceneValues(scene.id);
-    expect(Object.keys(all).sort()).toEqual(Object.keys(LANDSCAPE_DEFAULTS).sort());
+    expect(Object.keys(all).sort()).toEqual(Object.keys(STUDIO_DEFAULTS).sort());
   });
 
   it('generates reproducible, in-range worlds and respects land/water intent', () => {
@@ -42,6 +42,19 @@ describe('landscape shader parameters', () => {
     const v = varyWorld(a);
     for (const k of CAMERA_PARAMS) expect(v[k]).toEqual(a[k]);
     expect(v.uStyle).toBe(a.uStyle);
+  });
+});
+
+describe('block (voxel) render style', () => {
+  it('shares the world generator parameters so both styles show the same world', () => {
+    const shared = ['uStyle', 'uSeed', 'uScale', 'uHeight', 'uRoughness', 'uOctaves', 'uSnowLine', 'uVegetation', 'uWaterLevel', 'uSunElevation', 'uSunAzimuth', 'uClouds', 'uFog', ...CAMERA_PARAMS];
+    for (const k of shared) {
+      const a = LANDSCAPE_PARAMS.find((d) => d.name === k)!;
+      const b = VOXEL_PARAMS.find((d) => d.name === k);
+      expect(b, k).toBeDefined();
+      expect({ type: b!.type, min: b!.min, max: b!.max, default: b!.default }).toEqual({ type: a.type, min: a.min, max: a.max, default: a.default });
+    }
+    expect(VOXEL_PARAMS.filter((d) => d.group === 'Blocks').map((d) => d.name)).toEqual(['uBlockSize', 'uTrees', 'uPixelTexture', 'uEdges']);
   });
 });
 

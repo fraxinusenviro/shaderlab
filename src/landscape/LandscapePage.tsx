@@ -4,7 +4,7 @@
  * terrain / water / sky / camera controls, with save-to-library, PNG export
  * and hand-off to the full editor.
  */
-import { ArrowLeft, Camera, Code2, Dice5, Eye, Maximize2, Mountain, Pause, Play, Save, Shuffle, Sparkles, Undo2, Waves } from 'lucide-react';
+import { ArrowLeft, Box, Camera, Code2, Dice5, Eye, Maximize2, Mountain, Pause, Play, Save, Shuffle, Sparkles, Undo2, Waves } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ParamField } from '../components/ParamField';
 import { ShaderCanvas } from '../components/ShaderCanvas';
@@ -23,19 +23,20 @@ import { forkProject, projectFromPreset } from '../storage/project';
 import { repository } from '../storage/repository';
 import { downloadBlob, imageDataToBlob, safeFilename } from '../utils/download';
 import { LANDSCAPE_SCENES, type LandscapeScene } from './scenes';
-import { LANDSCAPE_PARAMS, LANDSCAPE_SOURCE, paramDef, randomWorld, sceneValues, useLandscape, varyWorld } from './store';
+import { paramDef, randomWorld, RENDER_MODES, renderMode, sceneValues, useLandscape, varyWorld, type RenderMode } from './store';
 
-type Tab = 'scenes' | 'Terrain' | 'Water' | 'Sky' | 'Camera';
-const GROUP_COLORS: Record<string, string> = { Terrain: '#a3e635', Water: '#38bdf8', Sky: '#fbbf24', Camera: '#c084fc' };
+type Tab = 'scenes' | 'Terrain' | 'Blocks' | 'Water' | 'Sky' | 'Camera';
+const GROUP_COLORS: Record<string, string> = { Blocks: '#f97316', Terrain: '#a3e635', Water: '#38bdf8', Sky: '#fbbf24', Camera: '#c084fc' };
 
 const thumbCache = new Map<string, string>();
 
-function SceneCard({ scene, active, onPick }: { scene: LandscapeScene; active: boolean; onPick: () => void }) {
-  const [src, setSrc] = useState(thumbCache.get(scene.id));
+function SceneCard({ scene, active, onPick, mode }: { scene: LandscapeScene; active: boolean; onPick: () => void; mode: RenderMode }) {
+  const key = `${mode}:${scene.id}`;
+  const [src, setSrc] = useState(thumbCache.get(key));
   useEffect(() => {
     if (src) return;
     const job = requestThumbnail({
-      input: { fragment: LANDSCAPE_SOURCE, format: 'shadertoy', params: LANDSCAPE_PARAMS },
+      input: { fragment: renderMode(mode).source, format: 'shadertoy', params: renderMode(mode).params },
       values: { ...sceneValues(scene.id), uQuality: 0 },
       time: 3,
       width: 192,
@@ -44,12 +45,12 @@ function SceneCard({ scene, active, onPick }: { scene: LandscapeScene; active: b
     });
     void job.promise.then((r) => {
       if (r.dataUrl) {
-        thumbCache.set(scene.id, r.dataUrl);
+        thumbCache.set(key, r.dataUrl);
         setSrc(r.dataUrl);
       }
     });
     return job.cancel;
-  }, [scene.id, src]);
+  }, [key, src, mode, scene.id]);
   const Icon = scene.kind === 'water' ? Waves : scene.kind === 'land' ? Mountain : Sparkles;
   return (
     <button className={`group overflow-hidden rounded-lg border text-left ${active ? 'border-accent' : 'border-line hover:border-muted'}`} onClick={onPick} data-testid="scene-card" data-scene={scene.id} title={scene.description}>
@@ -81,7 +82,8 @@ function GroupControls({ group }: { group: Exclude<Tab, 'scenes'> }) {
   const values = useLandscape((s) => s.values);
   const set = useLandscape((s) => s.set);
   const setMany = useLandscape((s) => s.setMany);
-  const defs = LANDSCAPE_PARAMS.filter((d) => d.group === group);
+  const mode = useLandscape((s) => s.mode);
+  const defs = renderMode(mode).params.filter((d) => d.group === group);
   const h = values.uHeight as number;
   const wl = values.uWaterLevel as number;
   const se = values.uSunElevation as number;
@@ -106,6 +108,19 @@ function GroupControls({ group }: { group: Exclude<Tab, 'scenes'> }) {
           { label: 'Noon', onClick: () => setMany({ uSunElevation: 1.2 }) },
           { label: 'Golden hour', onClick: () => setMany({ uSunElevation: 0.12, uSunAzimuth: 4.6 }) },
           { label: 'Night', onClick: () => setMany({ uSunElevation: -0.12 }), active: se < 0 },
+        ]}
+      />
+    ) : group === 'Blocks' ? (
+      <QuickRow
+        label="Look"
+        items={[
+          { label: 'Chunky blocks', onClick: () => setMany({ uBlockSize: 0.2 }) },
+          { label: 'Standard', onClick: () => setMany({ uBlockSize: 0.12 }), active: values.uBlockSize === 0.12 },
+          { label: 'Fine blocks', onClick: () => setMany({ uBlockSize: 0.07 }) },
+          { label: 'Forest', onClick: () => setMany({ uTrees: 1, uVegetation: 1 }) },
+          { label: 'No trees', onClick: () => setMany({ uTrees: 0 }), active: values.uTrees === 0 },
+          { label: 'Flat colours', onClick: () => setMany({ uPixelTexture: 0, uEdges: 0.6 }) },
+          { label: 'Pixel textures', onClick: () => setMany({ uPixelTexture: 1, uEdges: 0.35 }) },
         ]}
       />
     ) : group === 'Camera' ? (
@@ -154,7 +169,10 @@ export function LandscapePage() {
   const [fps, setFps] = useState(0);
   const clock = useMemo(() => new Clock(), []);
   const rendererRef = useRef<ShaderRenderer | null>(null);
-  const preset = getPreset('landscape')!;
+  const mode = useLandscape((s) => s.mode);
+  const setMode = useLandscape((s) => s.setMode);
+  const shader = renderMode(mode);
+  const preset = getPreset(shader.presetId)!;
 
   const togglePlay = () => {
     if (clock.playing) clock.pause();
@@ -181,7 +199,7 @@ export function LandscapePage() {
     if (!name?.trim()) return;
     const p = forkProject(project(), name.trim(), 'user');
     p.category = 'Terrain & Landscape';
-    p.tags = Array.from(new Set([...p.tags, 'landscape-studio']));
+    p.tags = Array.from(new Set([...p.tags, 'landscape-studio', ...(mode === 'blocks' ? ['blocks'] : [])]));
     const r = rendererRef.current;
     if (r) {
       const img = r.renderToPixels(320, 180);
@@ -201,7 +219,9 @@ export function LandscapePage() {
     else void el?.requestFullscreen?.().catch(() => toast('warn', 'Fullscreen is not available here.'));
   };
 
-  const tabs: Tab[] = mobile ? ['scenes', 'Terrain', 'Water', 'Sky', 'Camera'] : ['Terrain', 'Water', 'Sky', 'Camera'];
+  const groupTabs: Tab[] = mode === 'blocks' ? ['Terrain', 'Blocks', 'Water', 'Sky', 'Camera'] : ['Terrain', 'Water', 'Sky', 'Camera'];
+  const tabs: Tab[] = mobile ? ['scenes', ...groupTabs] : groupTabs;
+  const activeTab: Tab = tabs.includes(tab) ? tab : tabs[mobile ? 1 : 0];
   const scenes = (
     <div className="flex flex-col gap-3 p-3">
       <div className="grid grid-cols-2 gap-2">
@@ -221,7 +241,7 @@ export function LandscapePage() {
       <div className="label">Scenes</div>
       <div className="grid grid-cols-2 gap-2">
         {LANDSCAPE_SCENES.map((s) => (
-          <SceneCard key={s.id} scene={s} active={sceneId === s.id} onPick={() => applyScene(s.id)} />
+          <SceneCard key={`${mode}-${s.id}`} scene={s} mode={mode} active={sceneId === s.id} onPick={() => applyScene(s.id)} />
         ))}
       </div>
     </div>
@@ -231,9 +251,9 @@ export function LandscapePage() {
     <div className="relative h-full min-h-0 bg-black" data-testid="landscape-view">
       <ShaderCanvas
         label="Landscape render"
-        fragment={LANDSCAPE_SOURCE}
+        fragment={shader.source}
         format="shadertoy"
-        params={LANDSCAPE_PARAMS}
+        params={shader.params}
         values={values}
         clock={clock}
         pixelRatio={res}
@@ -294,7 +314,23 @@ export function LandscapePage() {
         </button>
         <div className="flex items-center gap-2">
           <Mountain size={16} className="text-accent" />
-          <span className="text-sm font-semibold">Landscape & Waterscape</span>
+          <span className="hidden text-sm font-semibold sm:inline">Landscape & Waterscape</span>
+        </div>
+        <div className="ml-2 flex rounded-md border border-line p-0.5" role="radiogroup" aria-label="Render style">
+          {RENDER_MODES.map((m) => (
+            <button
+              key={m.id}
+              role="radio"
+              aria-checked={mode === m.id}
+              className={`flex items-center gap-1 rounded px-2 py-0.5 text-xs ${mode === m.id ? 'bg-accent text-black' : 'text-muted hover:text-fg'}`}
+              onClick={() => setMode(m.id)}
+              data-testid={`mode-${m.id}`}
+              title={m.id === 'blocks' ? 'Blocky voxel world with pixel-art textures' : 'Smooth raymarched terrain and water'}
+            >
+              {m.id === 'blocks' ? <Box size={12} /> : <Mountain size={12} />}
+              {m.label}
+            </button>
+          ))}
         </div>
         <div className="ml-auto flex items-center gap-1">
           <button className="btn btn-ghost px-2" onClick={() => void save()} title="Save to My shaders" data-testid="landscape-save">
@@ -313,12 +349,12 @@ export function LandscapePage() {
           <div className="h-[45%] shrink-0">{viewport}</div>
           <div className="flex shrink-0 overflow-x-auto border-b border-line bg-panel" role="tablist">
             {tabs.map((t) => (
-              <button key={t} role="tab" aria-selected={tab === t} className={`tab flex-1 ${tab === t ? 'tab-active' : ''}`} onClick={() => setTab(t)}>
+              <button key={t} role="tab" aria-selected={activeTab === t} className={`tab flex-1 ${activeTab === t ? 'tab-active' : ''}`} onClick={() => setTab(t)}>
                 {t === 'scenes' ? 'Scenes' : t}
               </button>
             ))}
           </div>
-          <div className="scroll-thin min-h-0 flex-1 overflow-y-auto bg-panel">{tab === 'scenes' ? scenes : <GroupControls group={tab} />}</div>
+          <div className="scroll-thin min-h-0 flex-1 overflow-y-auto bg-panel">{activeTab === 'scenes' ? scenes : <GroupControls group={activeTab} />}</div>
         </div>
       ) : (
         <div className="flex min-h-0 flex-1">
@@ -327,12 +363,12 @@ export function LandscapePage() {
           <aside className="flex w-80 shrink-0 flex-col border-l border-line bg-panel">
             <div className="flex shrink-0 border-b border-line" role="tablist">
               {tabs.map((t) => (
-                <button key={t} role="tab" aria-selected={tab === t} className={`tab flex-1 ${tab === t ? 'tab-active' : ''}`} onClick={() => setTab(t)} style={tab === t ? { borderColor: GROUP_COLORS[t] } : undefined}>
+                <button key={t} role="tab" aria-selected={activeTab === t} className={`tab flex-1 ${activeTab === t ? 'tab-active' : ''}`} onClick={() => setTab(t)} style={activeTab === t ? { borderColor: GROUP_COLORS[t] } : undefined}>
                   {t}
                 </button>
               ))}
             </div>
-            <div className="scroll-thin min-h-0 flex-1 overflow-y-auto">{tab !== 'scenes' && <GroupControls group={tab} />}</div>
+            <div className="scroll-thin min-h-0 flex-1 overflow-y-auto">{activeTab !== 'scenes' && <GroupControls group={activeTab} />}</div>
           </aside>
         </div>
       )}

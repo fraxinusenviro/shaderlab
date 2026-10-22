@@ -15,6 +15,7 @@ import gltRipple from './shaders/glt-ripple.glsl?raw';
 import inferno from './shaders/inferno.glsl?raw';
 import julia from './shaders/julia.glsl?raw';
 import landscape from './shaders/landscape.glsl?raw';
+import voxel from './shaders/voxel.glsl?raw';
 import kaleido from './shaders/kaleido.glsl?raw';
 import lens from './shaders/lens.glsl?raw';
 import liquid from './shaders/liquid.glsl?raw';
@@ -68,6 +69,7 @@ export const PRESETS: PresetDef[] = [
   { id: 'julia', name: 'Julia Bloom', category: 'Fractals', description: 'Julia set whose constant orbits a circle; orbit traps add glow.', tags: ['fractal', 'julia', 'animated'], format: 'shadertoy', fragment: julia, ...SF },
   { id: 'terrain', name: 'Ridge Flyover', category: 'Terrain & Landscape', theme: 'Earth', description: 'Raymarched ridged-noise mountains with snow, fog and sun.', tags: ['terrain', 'raymarch', 'earth'], format: 'shadertoy', fragment: terrain, ...SF },
   { id: 'landscape', name: 'Landscape Studio', category: 'Terrain & Landscape', theme: 'Earth', description: 'Procedural raymarched terrain and water: mountains, hills, islands, canyons, dunes; waves, foam, sky, clouds and a flyover camera. Also available as the dedicated Landscape studio.', tags: ['terrain', 'water', 'raymarch', 'landscape', 'ocean'], format: 'shadertoy', fragment: landscape, ...SF },
+  { id: 'voxel', name: 'Block World', category: 'Terrain & Landscape', theme: 'Geometry', description: 'The Landscape Studio worlds rebuilt from cubes: DDA voxel tracing, pixel-art block textures, trees, translucent water, square sun and blocky clouds. Also the "Blocks" style in the Landscape studio.', tags: ['voxel', 'blocks', 'terrain', 'water', 'pixel-art'], format: 'shadertoy', fragment: voxel, ...SF },
   { id: 'strata', name: 'Topographic Strata', category: 'Terrain & Landscape', theme: 'Earth', description: 'Contour-line map over warped noise (conventional GLSL ES 1.00 main()).', tags: ['terrain', 'contours', 'earth', 'standard'], format: 'standard', fragment: strata, ...SF },
   { id: 'turbulence', name: 'Domain Turbulence', category: 'Noise & Turbulence', description: 'Two-level domain-warped fBm with octave, lacunarity and gain controls.', tags: ['noise', 'fbm', 'warp'], format: 'shadertoy', fragment: turbulence, ...SF },
   { id: 'cells', name: 'Cellular Colony', category: 'Organic & Biological', description: 'Wobbling Voronoi cells with membranes and nuclei.', tags: ['voronoi', 'organic', 'cells'], format: 'shadertoy', fragment: cells, ...SF },

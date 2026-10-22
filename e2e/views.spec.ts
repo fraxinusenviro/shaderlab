@@ -89,3 +89,34 @@ test.describe('landscape & waterscape studio', () => {
     await expect(page.getByTestId('library-item')).toHaveCount(1);
   });
 });
+
+test('landscape studio: Blocks render style', async ({ page }) => {
+  test.setTimeout(150_000);
+  await lowRes(page);
+  await page.addInitScript(() => {
+    if (!localStorage.getItem('shader-forge:landscape')) localStorage.setItem('shader-forge:landscape', JSON.stringify({ state: { values: { uQuality: 0 }, sceneId: null, mode: 'smooth' }, version: 1 }));
+  });
+  await page.goto('./#/landscape');
+  await expect(page.getByTestId('landscape')).toBeVisible();
+  const state = () => page.evaluate(() => JSON.parse(localStorage.getItem('shader-forge:landscape') ?? '{}').state);
+  await expect(page.getByRole('tab', { name: 'Blocks' })).toHaveCount(0);
+  await page.getByTestId('mode-blocks').click();
+  await expect(page.getByTestId('mode-blocks')).toHaveAttribute('aria-checked', 'true');
+  await expect.poll(async () => (await state()).mode).toBe('blocks');
+  await page.getByRole('tab', { name: 'Blocks' }).click();
+  await page.getByRole('button', { name: 'Chunky blocks' }).click();
+  await expect.poll(async () => (await state()).values.uBlockSize).toBe(0.2);
+  await page.locator('[data-field="uTrees"] input[type="range"]').fill('1');
+  await expect.poll(async () => (await state()).values.uTrees).toBe(1);
+  // World parameters are shared with the realistic style.
+  await page.getByRole('tab', { name: 'Terrain' }).click();
+  await page.getByRole('radio', { name: 'Archipelago' }).click();
+  await page.getByTestId('mode-smooth').click();
+  await expect.poll(async () => (await state()).values.uStyle).toBe(2);
+  await page.getByTestId('mode-blocks').click();
+  await page.getByTestId('landscape-edit').click();
+  await expect(page.getByTestId('code-editor')).toBeVisible();
+  await waitFor(page, () => (window as any).__shaderForge.workspace.getState().compile.status === 'ok', undefined, 60_000);
+  expect(await ws(page, 'ws.project.provenance.presetId')).toBe('voxel');
+  expect(await ws(page, 'ws.project.values.uBlockSize')).toBe(0.2);
+});
