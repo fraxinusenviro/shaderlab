@@ -1,0 +1,156 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root,
+[data-theme='dark'] {
+  --bg: 11 13 18;
+  --panel: 18 21 28;
+  --panel2: 26 30 39;
+  --line: 44 50 63;
+  --fg: 226 230 238;
+  --muted: 140 149 166;
+  --accent: 255 138 76;
+  --danger: 248 113 113;
+  --ok: 74 222 128;
+  --warn: 250 204 21;
+  color-scheme: dark;
+}
+[data-theme='light'] {
+  --bg: 240 242 246;
+  --panel: 255 255 255;
+  --panel2: 245 246 249;
+  --line: 214 219 228;
+  --fg: 24 28 36;
+  --muted: 96 105 122;
+  --accent: 225 95 30;
+  --danger: 220 38 38;
+  --ok: 22 163 74;
+  --warn: 202 138 4;
+  color-scheme: light;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+body {
+  @apply bg-bg text-fg antialiased;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  font-size: 13px;
+  -webkit-tap-highlight-color: transparent;
+}
+
+@layer components {
+  .btn {
+    @apply inline-flex items-center justify-center gap-1.5 rounded-md border border-line bg-panel2 px-2.5 py-1.5 text-xs font-medium text-fg transition-colors hover:border-muted/60 hover:bg-line/60 disabled:cursor-not-allowed disabled:opacity-40;
+  }
+  .btn-primary {
+    @apply border-accent/70 bg-accent/90 text-black hover:bg-accent;
+  }
+  .btn-ghost {
+    @apply border-transparent bg-transparent hover:bg-line/50;
+  }
+  .btn-icon {
+    @apply inline-flex h-7 w-7 items-center justify-center rounded-md text-muted transition-colors hover:bg-line/60 hover:text-fg disabled:opacity-30;
+  }
+  .input {
+    @apply w-full rounded-md border border-line bg-bg px-2 py-1 text-xs text-fg outline-none focus:border-accent/70;
+  }
+  .label {
+    @apply text-2xs font-semibold uppercase tracking-wider text-muted;
+  }
+  .panel-title {
+    @apply flex items-center justify-between px-3 py-2 text-2xs font-semibold uppercase tracking-wider text-muted;
+  }
+  .tab {
+    @apply whitespace-nowrap border-b-2 border-transparent px-2.5 py-2 text-xs text-muted hover:text-fg;
+  }
+  .tab-active {
+    @apply border-accent text-fg;
+  }
+  .chip {
+    @apply inline-flex items-center gap-1 rounded-full border border-line px-2 py-0.5 text-2xs text-muted;
+  }
+}
+
+/* Range sliders: large touch targets, slim visuals. */
+input[type='range'] {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  width: 100%;
+  height: 22px;
+  cursor: pointer;
+  touch-action: pan-y;
+}
+input[type='range']::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 2px;
+  background: linear-gradient(to right, var(--track-fill, rgb(var(--accent))) 0 var(--fill, 50%), rgb(var(--line)) var(--fill, 50%) 100%);
+}
+input[type='range']::-moz-range-track {
+  height: 4px;
+  border-radius: 2px;
+  background: rgb(var(--line));
+}
+input[type='range']::-moz-range-progress {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--track-fill, rgb(var(--accent)));
+}
+input[type='range']::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  margin-top: -6px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: rgb(var(--fg));
+  border: 2px solid rgb(var(--panel));
+  box-shadow: 0 0 0 1px rgb(var(--line));
+}
+input[type='range']::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: rgb(var(--fg));
+  border: 2px solid rgb(var(--panel));
+}
+@media (pointer: coarse) {
+  input[type='range'] {
+    height: 32px;
+  }
+  input[type='range']::-webkit-slider-thumb {
+    width: 24px;
+    height: 24px;
+    margin-top: -10px;
+  }
+}
+
+.scroll-thin {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(var(--line)) transparent;
+}
+.scroll-thin::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.scroll-thin::-webkit-scrollbar-thumb {
+  background: rgb(var(--line));
+  border-radius: 4px;
+}
+
+.cm-editor {
+  height: 100%;
+}
+.cm-editor.cm-focused {
+  outline: none;
+}
+.checker {
+  background-image: conic-gradient(rgb(var(--line)) 25%, transparent 0 50%, rgb(var(--line)) 0 75%, transparent 0);
+  background-size: 12px 12px;
+}
