@@ -58,6 +58,7 @@ export default defineConfig({
         categories: ['graphics', 'developer', 'art'],
         shortcuts: [
           { name: 'Viewer', short_name: 'Viewer', description: 'Simple full-screen shader viewer', url: './#/view', icons: [{ src: 'icons/icon-192.png', sizes: '192x192', type: 'image/png' }] },
+          { name: 'Fractal zoom', short_name: 'Fractal', description: 'Mandelbrot deep zoom', url: './#/fractal', icons: [{ src: 'icons/icon-192.png', sizes: '192x192', type: 'image/png' }] },
           { name: 'Landscape studio', short_name: 'Landscape', description: 'Procedural landscape & waterscape generator', url: './#/landscape', icons: [{ src: 'icons/icon-192.png', sizes: '192x192', type: 'image/png' }] },
         ],
         icons: [

@@ -19,7 +19,7 @@ export interface Settings {
   compactControls: boolean;
   showStats: boolean;
   /** Page shown when the app is opened without a route. */
-  startPage: 'workspace' | 'view' | 'landscape';
+  startPage: 'workspace' | 'view' | 'landscape' | 'fractal';
 }
 
 export const DEFAULT_SETTINGS: Settings = {

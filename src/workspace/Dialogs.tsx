@@ -307,6 +307,7 @@ export function SettingsDialog() {
               <option value="workspace">Editor (full workstation)</option>
               <option value="view">Viewer (simple full-screen)</option>
               <option value="landscape">Landscape & waterscape studio</option>
+              <option value="fractal">Fractal zoom (Mandelbrot)</option>
             </select>
           </Field>
         </section>

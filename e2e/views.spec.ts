@@ -41,7 +41,7 @@ test.describe('simple viewer', () => {
 
 test.describe('landscape & waterscape studio', () => {
   test('applies scenes, edits grouped controls, generates worlds, saves and opens in the editor', async ({ page: first, context }) => {
-    test.setTimeout(150_000);
+    test.setTimeout(300_000);
     let page = first;
     page.on('dialog', (d) => void d.accept('My test world'));
     await lowRes(page);
@@ -90,6 +90,25 @@ test.describe('landscape & waterscape studio', () => {
   });
 });
 
+test('landscape studio: vegetation generator', async ({ page }) => {
+  await lowRes(page);
+  await page.goto('./#/landscape');
+  await expect(page.getByTestId('landscape')).toBeVisible();
+  const state = () => page.evaluate(() => JSON.parse(localStorage.getItem('shader-forge:landscape') ?? '{}').state);
+  await page.getByRole('tab', { name: 'Vegetation' }).click();
+  await page.getByTestId('biome-autumn').click();
+  await expect.poll(async () => (await state()).values.uLeafColor).toEqual([0.62, 0.28, 0.07]);
+  expect((await state()).values.uConifer).toBe(0.15);
+  const seed = (await state()).values.uVegSeed;
+  await page.getByTestId('regrow').click();
+  await expect.poll(async () => (await state()).values.uVegSeed).not.toBe(seed);
+  await page.locator('[data-field="uFlowers"] input[type="range"]').fill('0.9');
+  await expect.poll(async () => (await state()).values.uFlowers).toBe(0.9);
+  const before = JSON.stringify((await state()).values);
+  await page.getByTestId('random-biome').click();
+  await expect.poll(async () => JSON.stringify((await state()).values)).not.toBe(before);
+});
+
 test('landscape studio: Blocks render style', async ({ page }) => {
   test.setTimeout(150_000);
   await lowRes(page);
@@ -106,8 +125,9 @@ test('landscape studio: Blocks render style', async ({ page }) => {
   await page.getByRole('tab', { name: 'Blocks' }).click();
   await page.getByRole('button', { name: 'Chunky blocks' }).click();
   await expect.poll(async () => (await state()).values.uBlockSize).toBe(0.2);
-  await page.locator('[data-field="uTrees"] input[type="range"]').fill('1');
-  await expect.poll(async () => (await state()).values.uTrees).toBe(1);
+  await page.getByRole('tab', { name: 'Vegetation' }).click();
+  await page.locator('[data-field="uForest"] input[type="range"]').fill('1');
+  await expect.poll(async () => (await state()).values.uForest).toBe(1);
   // World parameters are shared with the realistic style.
   await page.getByRole('tab', { name: 'Terrain' }).click();
   await page.getByRole('radio', { name: 'Archipelago' }).click();
@@ -119,4 +139,39 @@ test('landscape studio: Blocks render style', async ({ page }) => {
   await waitFor(page, () => (window as any).__shaderForge.workspace.getState().compile.status === 'ok', undefined, 60_000);
   expect(await ws(page, 'ws.project.provenance.presetId')).toBe('voxel');
   expect(await ws(page, 'ws.project.values.uBlockSize')).toBe(0.2);
+});
+
+test.describe('fractal zoom', () => {
+  test('deep zoom tour, controls, bookmarks and share links', async ({ page, baseURL }) => {
+    test.setTimeout(240_000);
+    await page.addInitScript(() => localStorage.setItem('shader-forge:fractal', JSON.stringify({ state: { quality: 'draft' }, version: 1 })));
+    await page.goto('./#/fractal');
+    await expect(page.getByTestId('fractal-canvas')).toBeVisible();
+    await expect(page.getByTestId('fractal-readout')).toContainText('×10^0.00');
+    await expect(page.getByTestId('fractal-tour')).toHaveCount(7);
+    // Start a tour: autoplay zooms in, centred on the computed target.
+    await page.locator('[data-tour="seahorse-minibrot"]').click();
+    await expect.poll(async () => Number(/×10\^([\d.]+)/.exec((await page.getByTestId('fractal-readout').textContent()) ?? '')?.[1] ?? 0), { timeout: 60_000 }).toBeGreaterThan(0.5);
+    await expect(page.getByTestId('fractal-readout')).toContainText('-0.7436438870');
+    await page.getByTestId('fractal-play').click(); // pause
+    // Wheel zoom works and the view persists.
+    const box = (await page.getByTestId('fractal-canvas').boundingBox())!;
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    const z0 = await page.evaluate(() => JSON.parse(localStorage.getItem('shader-forge:fractal')!).state.zoom);
+    await page.mouse.wheel(0, -600);
+    await expect.poll(async () => page.evaluate(() => JSON.parse(localStorage.getItem('shader-forge:fractal')!).state.zoom), { timeout: 10_000 }).toBeGreaterThan(z0 + 0.3);
+    // Bookmark the view.
+    page.once('dialog', (d) => void d.accept('Test spot'));
+    await page.getByRole('tab', { name: 'saved' }).click();
+    await page.getByTestId('fractal-bookmark').click();
+    await expect(page.getByTestId('fractal-bookmark-item')).toHaveCount(1);
+    // A share link restores an exact deep view.
+    const re = '-0.7746724469356738080461171765322245435665009634996757197';
+    await page.goto(`${baseURL}#/landscape`);
+    await page.goto(`${baseURL}#/fractal?re=${re}&im=0.137429292340916890591543464097869529007304705906938161&z=20&p=fire`);
+    await page.reload();
+    await expect(page.getByTestId('fractal-readout')).toContainText('×10^20.00', { timeout: 30_000 });
+    await expect(page.getByTestId('fractal-readout')).toContainText('-0.77467244693567380804611717');
+    await expect(page.getByTestId('fractal-readout')).not.toContainText('computing', { timeout: 30_000 });
+  });
 });

@@ -4,6 +4,9 @@ import { expect, type Page } from '@playwright/test';
 /** Software-rendered CI GPUs are slow: render the viewport at reduced resolution. */
 export async function lowRes(page: Page): Promise<void> {
   await page.addInitScript(() => {
+    if (!localStorage.getItem('shader-forge:landscape')) {
+      localStorage.setItem('shader-forge:landscape', JSON.stringify({ state: { values: { uQuality: 0 }, sceneId: null, mode: 'smooth' }, version: 1 }));
+    }
     if (!localStorage.getItem('shader-forge:settings')) {
       localStorage.setItem('shader-forge:settings', JSON.stringify({ state: { pixelRatio: 0.35, thumbQuality: 'low' }, version: 1 }));
     }

@@ -6,6 +6,7 @@ import { clampToDef, cloneValue, deriveParams, mergeParams, valuesEqualType } fr
 import landscapeSource from '../presets/shaders/landscape.glsl?raw';
 import voxelSource from '../presets/shaders/voxel.glsl?raw';
 import type { ParamDef, ParamValue } from '../types/shader';
+import { randomBiome } from './biomes';
 import { LANDSCAPE_SCENES, WORLD_PARAMS } from './scenes';
 
 export const LANDSCAPE_SOURCE = landscapeSource;
@@ -57,6 +58,8 @@ export function randomWorld(seed: number, current: Record<string, ParamValue>, o
     const def = paramDef(k);
     if (def) next[k] = clampToDef(def, rng.range(a, b));
   }
+  Object.assign(next, randomBiome(rng.int(0, 1_000_000)));
+  if (next.uStyle === 3 || next.uStyle === 4) next.uCacti = rng.range(0.3, 0.9);
   const h = next.uHeight as number;
   const wantWater = opts.water === 'water' || (opts.water === 'auto' && rng.chance(next.uStyle === 4 || next.uStyle === 3 ? 0.25 : 0.8));
   next.uWaterLevel = wantWater ? Number((h * rng.range(0.12, 0.4)).toFixed(3)) : -0.5;
@@ -100,7 +103,8 @@ export const useLandscape = create<LandscapeState>()(
         set({ values: { ...prev, [name]: cloneValue(v) }, history: [...get().history.slice(-49), prev] });
       },
       setMany: (v, sceneId = null) => set({ values: { ...get().values, ...v }, sceneId, history: [...get().history.slice(-49), get().values] }),
-      applyScene: (id) => set({ values: sceneValues(id), sceneId: id, history: [...get().history.slice(-49), get().values] }),
+      // Render quality is a performance preference, not part of a scene.
+      applyScene: (id) => set({ values: { ...sceneValues(id), uQuality: get().values.uQuality }, sceneId: id, history: [...get().history.slice(-49), get().values] }),
       undo: () => {
         const h = get().history;
         if (!h.length) return;

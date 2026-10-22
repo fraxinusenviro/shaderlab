@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useRegisterSW } from 'virtual:pwa-register/react';
 import { Resizer, Toasts } from './components/ui';
 import { navigate, parseHash, useHashRoute } from './hooks/useHashRoute';
+import { FractalPage } from './fractal/FractalPage';
 import { LandscapePage } from './landscape/LandscapePage';
 import { ViewerPage } from './viewer/ViewerPage';
 
@@ -359,10 +360,10 @@ export default function App() {
     return () => window.removeEventListener('hashchange', onHash);
   }, [ready]);
 
-  if (route.view === 'view' || route.view === 'landscape') {
+  if (route.view === 'view' || route.view === 'landscape' || route.view === 'fractal') {
     return (
       <div className="h-full">
-        {route.view === 'view' ? <ViewerPage /> : <LandscapePage />}
+        {route.view === 'view' ? <ViewerPage /> : route.view === 'landscape' ? <LandscapePage /> : <FractalPage />}
         <Toasts />
         <UpdatePrompt />
       </div>

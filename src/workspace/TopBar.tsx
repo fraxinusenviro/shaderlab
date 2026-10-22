@@ -1,4 +1,4 @@
-import { Columns2, Download, Eye, Mountain, FilePlus2, FlaskConical, FolderOpen, Keyboard, LayoutGrid, Menu, Moon, Redo2, Save, SaveAll, Settings, Sun, Undo2 } from 'lucide-react';
+import { Columns2, Download, Eye, Infinity as InfinityIcon, Mountain, FilePlus2, FlaskConical, FolderOpen, Keyboard, LayoutGrid, Menu, Moon, Redo2, Save, SaveAll, Settings, Sun, Undo2 } from 'lucide-react';
 import { useRef } from 'react';
 import { navigate, useHashRoute } from '../hooks/useHashRoute';
 import { useLibrary } from '../state/library';
@@ -87,7 +87,11 @@ export function TopBar({ mobile = false }: { mobile?: boolean }) {
           <B icon={<FolderOpen size={15} />} label="Import" onClick={() => fileRef.current?.click()} testid="btn-import" />
           <B icon={<Save size={15} />} label="Save" onClick={() => void doSave()} testid="btn-save" />
           <B icon={<SaveAll size={15} />} label="Save As" onClick={() => ui.set({ modal: 'saveAs' })} />
-          <div className="mx-1 h-5 w-px bg-line" />
+          <button className="btn btn-ghost px-2" onClick={() => navigate('fractal')} title="Mandelbrot deep zoom" aria-label="Fractal zoom" data-testid="btn-fractal">
+          <InfinityIcon size={15} />
+          <span className="hidden lg:inline">Fractal</span>
+        </button>
+        <div className="mx-1 h-5 w-px bg-line" />
           <B icon={<Undo2 size={15} />} label="Undo" onClick={() => ws.undo()} disabled={!canUndo} hideLabel />
           <B icon={<Redo2 size={15} />} label="Redo" onClick={() => ws.redo()} disabled={!canRedo} hideLabel />
           <div className="mx-1 h-5 w-px bg-line" />

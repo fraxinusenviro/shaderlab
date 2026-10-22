@@ -8,8 +8,9 @@ import { useSyncExternalStore } from 'react';
  *   #/compare           A/B comparison
  *   #/view[/<id>]       simple full-screen viewer   (?slideshow=20&ui=off)
  *   #/landscape         landscape & waterscape studio
+ *   #/fractal           Mandelbrot deep zoom      (?re=..&im=..&z=..&p=..&tour=..)
  */
-export type View = 'workspace' | 'gallery' | 'compare' | 'view' | 'landscape';
+export type View = 'workspace' | 'gallery' | 'compare' | 'view' | 'landscape' | 'fractal';
 export type Route = { view: View; shaderId?: string; query: Record<string, string> };
 
 export function parseHash(hash: string): Route {
@@ -21,6 +22,7 @@ export function parseHash(hash: string): Route {
   if (head === 'gallery') return { view: 'gallery', query };
   if (head === 'compare') return { view: 'compare', query };
   if (head === 'landscape') return { view: 'landscape', query };
+  if (head === 'fractal') return { view: 'fractal', query };
   if (head === 'view') return { view: 'view', shaderId: id, query };
   if (head === 'shader' && id) return { view: 'workspace', shaderId: id, query };
   return { view: 'workspace', query };

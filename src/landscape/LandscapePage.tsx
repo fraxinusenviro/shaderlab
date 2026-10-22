@@ -4,7 +4,7 @@
  * terrain / water / sky / camera controls, with save-to-library, PNG export
  * and hand-off to the full editor.
  */
-import { ArrowLeft, Box, Camera, Code2, Dice5, Eye, Maximize2, Mountain, Pause, Play, Save, Shuffle, Sparkles, Undo2, Waves } from 'lucide-react';
+import { ArrowLeft, Box, Camera, Sprout, Trees, Code2, Dice5, Eye, Maximize2, Mountain, Pause, Play, Save, Shuffle, Sparkles, Undo2, Waves } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ParamField } from '../components/ParamField';
 import { ShaderCanvas } from '../components/ShaderCanvas';
@@ -22,11 +22,12 @@ import { toast } from '../state/ui';
 import { forkProject, projectFromPreset } from '../storage/project';
 import { repository } from '../storage/repository';
 import { downloadBlob, imageDataToBlob, safeFilename } from '../utils/download';
+import { BIOMES, randomBiome } from './biomes';
 import { LANDSCAPE_SCENES, type LandscapeScene } from './scenes';
 import { paramDef, randomWorld, RENDER_MODES, renderMode, sceneValues, useLandscape, varyWorld, type RenderMode } from './store';
 
-type Tab = 'scenes' | 'Terrain' | 'Blocks' | 'Water' | 'Sky' | 'Camera';
-const GROUP_COLORS: Record<string, string> = { Blocks: '#f97316', Terrain: '#a3e635', Water: '#38bdf8', Sky: '#fbbf24', Camera: '#c084fc' };
+type Tab = 'scenes' | 'Terrain' | 'Vegetation' | 'Blocks' | 'Water' | 'Sky' | 'Camera';
+const GROUP_COLORS: Record<string, string> = { Vegetation: '#22c55e', Blocks: '#f97316', Terrain: '#a3e635', Water: '#38bdf8', Sky: '#fbbf24', Camera: '#c084fc' };
 
 const thumbCache = new Map<string, string>();
 
@@ -110,6 +111,26 @@ function GroupControls({ group }: { group: Exclude<Tab, 'scenes'> }) {
           { label: 'Night', onClick: () => setMany({ uSunElevation: -0.12 }), active: se < 0 },
         ]}
       />
+    ) : group === 'Vegetation' ? (
+      <div className="flex flex-col gap-2">
+        <div className="label">Biome</div>
+        <div className="grid grid-cols-2 gap-1">
+          {BIOMES.map((b) => (
+            <button key={b.id} className="chip justify-center py-1 hover:text-fg" title={b.description} onClick={() => setMany(b.values)} data-testid={`biome-${b.id}`}>
+              <Trees size={11} /> {b.name}
+            </button>
+          ))}
+        </div>
+        <div className="flex gap-1">
+          <button className="btn flex-1" onClick={() => setMany({ uVegSeed: Math.floor(Math.random() * 1000) })} title="Same settings, new placement" data-testid="regrow">
+            <Sprout size={13} /> Regrow
+          </button>
+          <button className="btn flex-1" onClick={() => setMany(randomBiome(randomSeed()))} title="A random blend of two biomes" data-testid="random-biome">
+            <Dice5 size={13} /> Random biome
+          </button>
+        </div>
+        <p className="text-2xs text-muted">Trees, shrubs and cacti are placed procedurally from the vegetation seed, avoiding water, steep slopes and ground above the tree line. Distant forests become canopy texture.</p>
+      </div>
     ) : group === 'Blocks' ? (
       <QuickRow
         label="Look"
@@ -117,8 +138,6 @@ function GroupControls({ group }: { group: Exclude<Tab, 'scenes'> }) {
           { label: 'Chunky blocks', onClick: () => setMany({ uBlockSize: 0.2 }) },
           { label: 'Standard', onClick: () => setMany({ uBlockSize: 0.12 }), active: values.uBlockSize === 0.12 },
           { label: 'Fine blocks', onClick: () => setMany({ uBlockSize: 0.07 }) },
-          { label: 'Forest', onClick: () => setMany({ uTrees: 1, uVegetation: 1 }) },
-          { label: 'No trees', onClick: () => setMany({ uTrees: 0 }), active: values.uTrees === 0 },
           { label: 'Flat colours', onClick: () => setMany({ uPixelTexture: 0, uEdges: 0.6 }) },
           { label: 'Pixel textures', onClick: () => setMany({ uPixelTexture: 1, uEdges: 0.35 }) },
         ]}
@@ -219,7 +238,7 @@ export function LandscapePage() {
     else void el?.requestFullscreen?.().catch(() => toast('warn', 'Fullscreen is not available here.'));
   };
 
-  const groupTabs: Tab[] = mode === 'blocks' ? ['Terrain', 'Blocks', 'Water', 'Sky', 'Camera'] : ['Terrain', 'Water', 'Sky', 'Camera'];
+  const groupTabs: Tab[] = mode === 'blocks' ? ['Terrain', 'Vegetation', 'Blocks', 'Water', 'Sky', 'Camera'] : ['Terrain', 'Vegetation', 'Water', 'Sky', 'Camera'];
   const tabs: Tab[] = mobile ? ['scenes', ...groupTabs] : groupTabs;
   const activeTab: Tab = tabs.includes(tab) ? tab : tabs[mobile ? 1 : 0];
   const scenes = (

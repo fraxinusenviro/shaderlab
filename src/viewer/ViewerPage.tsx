@@ -5,7 +5,7 @@
  *
  *   #/view/<id>?slideshow=20&ui=off   (kiosk / embedding)
  */
-import { ChevronLeft, ChevronRight, Camera, Code2, Dice5, Info, Maximize2, Mountain, Pause, Play, RotateCcw, SlidersHorizontal, Timer, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Camera, Sparkles, Code2, Dice5, Info, Maximize2, Mountain, Pause, Play, RotateCcw, SlidersHorizontal, Timer, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useIsMobile } from '../hooks/useMediaQuery';
 import { ParamField } from '../components/ParamField';
@@ -208,6 +208,9 @@ export function ViewerPage() {
             {index + 1} / {entries.length}
           </span>
           <div className="ml-auto flex items-center gap-1">
+            <button className="rounded-md px-2 py-1 text-xs text-white/80 hover:bg-white/10" onClick={() => navigate('fractal')} title="Mandelbrot deep zoom">
+              <Sparkles size={14} className="inline" /> <span className="hidden sm:inline">Fractal</span>
+            </button>
             <button className="rounded-md px-2 py-1 text-xs text-white/80 hover:bg-white/10" onClick={() => navigate('landscape')} title="Landscape & waterscape studio">
               <Mountain size={14} className="inline" /> <span className="hidden sm:inline">Landscape</span>
             </button>

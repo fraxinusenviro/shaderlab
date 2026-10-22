@@ -11,10 +11,22 @@ uniform float uHeight;       // @param default=1.6 min=0.1 max=4 step=0.01 label
 uniform float uRoughness;    // @param default=0.5 min=0.3 max=0.65 step=0.005 label="Roughness" group=Terrain
 uniform int uOctaves;        // @param default=7 min=2 max=9 label="Detail octaves" group=Terrain
 uniform float uSnowLine;     // @param default=1.6 min=0 max=4 step=0.01 label="Snow line" group=Terrain
-uniform float uVegetation;   // @param default=0.6 min=0 max=1 step=0.01 label="Vegetation" group=Terrain
+uniform float uVegetation;   // @param default=0.6 min=0 max=1 step=0.01 label="Grass cover" group=Vegetation
+uniform float uForest;       // @param default=0.45 min=0 max=1 step=0.01 label="Forest density" group=Vegetation
+uniform float uForestPatch;  // @param default=0.55 min=0 max=1 step=0.01 label="Forest clumping" group=Vegetation
+uniform float uConifer;      // @param default=0.5 min=0 max=1 step=0.01 label="Conifer share" group=Vegetation
+uniform float uTreeSize;     // @param default=1 min=0.4 max=2.5 step=0.01 label="Tree size" group=Vegetation
+uniform float uTreeVariety;  // @param default=0.5 min=0 max=1 step=0.01 label="Size variation" group=Vegetation
+uniform float uTreeLine;     // @param default=1.3 min=0 max=4 step=0.01 label="Tree line altitude" group=Vegetation
+uniform float uShrubs;       // @param default=0.3 min=0 max=1 step=0.01 label="Shrubs" group=Vegetation
+uniform float uFlowers;      // @param default=0.2 min=0 max=1 step=0.01 label="Wildflowers" group=Vegetation
+uniform float uCacti;        // @param default=0.3 min=0 max=1 step=0.01 label="Desert cacti" group=Vegetation
+uniform vec3 uLeafColor;     // @param widget=color default=0.15,0.3,0.09 label="Foliage colour" group=Vegetation
+uniform vec3 uGrassColor;    // @param widget=color default=0.25,0.32,0.1 label="Grass colour" group=Vegetation
+uniform vec3 uFlowerColor;   // @param widget=color default=0.95,0.78,0.2 label="Flower colour" group=Vegetation
+uniform float uVegSeed;      // @param widget=seed default=3 min=0 max=999 label="Vegetation seed" group=Vegetation
 uniform vec3 uRock;          // @param widget=color default=0.42,0.36,0.3 label="Rock colour" group=Terrain
 uniform float uBlockSize;    // @param default=0.12 min=0.04 max=0.4 step=0.005 label="Block size" group=Blocks
-uniform float uTrees;        // @param default=0.5 min=0 max=1 step=0.01 label="Tree density" group=Blocks
 uniform float uPixelTexture; // @param default=1 min=0 max=1 step=0.01 label="Pixel texture strength" group=Blocks
 uniform float uEdges;        // @param default=0.35 min=0 max=1 step=0.01 label="Block edge shading" group=Blocks
 uniform float uWaterLevel;   // @param default=0.35 min=-0.5 max=2.5 step=0.01 label="Water level" group=Water
@@ -117,6 +129,8 @@ const float M_WOOD = 6.0;
 const float M_LEAVES = 7.0;
 const float M_CLAY = 8.0;
 const float M_GRAVEL = 9.0;
+const float M_SPRUCE = 10.0;
+const float M_CACTUS = 11.0;
 
 float hash13(vec3 p) {
   p = mod(p, 289.0);
@@ -150,34 +164,67 @@ float groundMaterial(vec3 cell, float top) {
   return M_STONE;
 }
 
-// Trees sit on a coarse grid: at most one tree per 5x5 block cell, at a
-// seeded offset that keeps its canopy (radius 2) inside the cell, so a block
-// only ever needs to test a single candidate tree.
-vec2 treeTrunk(vec2 col, out bool exists) {
-  vec2 tc = floor(col / 5.0);
-  exists = hash13(vec3(tc, 9.0)) < uTrees * uVegetation * 0.8;
-  return tc * 5.0 + 2.0 + floor(vec2(hash13(vec3(tc, 10.0)), hash13(vec3(tc, 11.0))) * 1.999);
-}
-bool treeAllowed(float top) {
-  float worldY = top * uBlockSize;
-  return uStyle != 4 && uStyle != 3 && top > waterTop() + 1.0 && worldY < uSnowLine * 0.75;
+// Plants sit on a coarse grid: at most one per 6x6 block cell, with the trunk
+// two or three blocks in, so a radius-2 canopy stays inside the cell and a
+// block only ever needs to test a single candidate.
+float vegHash(vec2 c, float k) { return hash13(vec3(c, k + uVegSeed * 7.13)); }
+
+// kind: 0 none, 1 oak, 2 spruce, 3 bush, 4 cactus. size = trunk height in blocks.
+vec2 plantKind(vec2 col, out vec2 trunk, out float size) {
+  vec2 tc = floor(col / 6.0);
+  trunk = tc * 6.0 + 2.0 + floor(vec2(vegHash(tc, 10.0), vegHash(tc, 11.0)) * 1.999);
+  size = 0.0;
+  float r = vegHash(tc, 9.0);
+  bool desert = uStyle >= 3;
+  float clump = vnoise(tc * 0.35 + vec2(uVegSeed * 0.71, 3.3));
+  float dens = desert ? uCacti * 0.5 : uForest * mix(1.0, smoothstep(0.42, 0.62, clump), uForestPatch) * 0.95;
+  float v = vegHash(tc, 12.0);
+  if (r < dens) {
+    if (desert) {
+      size = 2.0 + floor(v * 2.5 * uTreeSize);
+      return vec2(4.0, v);
+    }
+    size = clamp(floor((3.0 + 1.6 * uTreeSize) * (1.0 + (v - 0.5) * uTreeVariety)), 2.0, 9.0);
+    return vec2(vegHash(tc, 13.0) < uConifer ? 2.0 : 1.0, v);
+  }
+  if (r < dens + uShrubs * 0.4) return vec2(3.0, v);
+  return vec2(0.0, v);
 }
 
-// Tree blocks above a column (top = this column's ground). The tree's base is
-// assumed to be at this column's ground height (terrain is smooth at block scale).
+bool plantAllowed(float top, float kind) {
+  float worldY = top * uBlockSize;
+  if (kind == 4.0) return top > waterTop();
+  return uStyle < 3 && top > waterTop() + 1.0 && worldY < uTreeLine && worldY < uSnowLine;
+}
+
+// Plant blocks above a column (top = this column's ground). The plant's base
+// is assumed to be at this column's ground height (smooth at block scale).
 float treeMaterial(vec3 cell, float top) {
-  if (uTrees <= 0.0) return 0.0;
+  if (uForest <= 0.0 && uShrubs <= 0.0 && uCacti <= 0.0) return 0.0;
   float h = cell.y - top;
-  if (h < 1.0 || h > 7.0) return 0.0;
-  bool exists;
-  vec2 trunk = treeTrunk(cell.xz, exists);
-  if (!exists || !treeAllowed(top)) return 0.0;
+  if (h < 1.0 || h > 11.0) return 0.0;
+  vec2 trunk;
+  float size;
+  vec2 kv = plantKind(cell.xz, trunk, size);
+  float kind = kv.x;
+  if (kind == 0.0 || !plantAllowed(top, kind)) return 0.0;
   vec2 d = abs(cell.xz - trunk);
   float r = max(d.x, d.y);
-  if (r == 0.0 && h <= 4.0) return M_WOOD;
-  if (h < 3.0) return 0.0;
-  float layer = h - 4.0; // -1 .. 3
-  float rad = layer <= 0.0 ? 2.0 : (layer <= 2.0 ? 1.0 : -1.0);
+  if (kind == 3.0) return (r == 0.0 && h == 1.0) || (h == 1.0 && r == 1.0 && d.x + d.y == 1.0 && kv.y > 0.5) ? M_LEAVES : 0.0;
+  if (kind == 4.0) return r == 0.0 && h <= size ? M_CACTUS : 0.0;
+  if (r == 0.0 && h <= size) return M_WOOD;
+  if (kind == 2.0) {
+    // Spruce: alternating radius-2 / radius-1 layers narrowing to a tip.
+    float j = size + 1.0 - h; // 0 at the tip
+    if (j < 0.0 || h < 3.0) return 0.0;
+    float rad = j < 0.5 ? 0.0 : mod(j, 2.0) == 1.0 ? 1.0 : (j < size - 1.0 ? 2.0 : 1.0);
+    if (r > rad || (rad == 2.0 && d.x == 2.0 && d.y == 2.0)) return 0.0;
+    return M_SPRUCE;
+  }
+  // Oak: wide lower canopy, narrower top.
+  float layer = h - size; // -1 .. 2
+  if (layer < -1.0 || layer > 2.0) return 0.0;
+  float rad = layer <= 0.0 ? 2.0 : 1.0;
   if (layer == 2.0 && d.x == 1.0 && d.y == 1.0) return 0.0;
   if (r > rad) return 0.0;
   if (d.x == 2.0 && d.y == 2.0 && hash13(vec3(trunk, h)) < 0.6) return 0.0;
@@ -193,9 +240,14 @@ vec3 blockTexture(float m, vec3 cell, vec3 n, vec2 uv) {
   bool top = n.y > 0.5;
   bool side = abs(n.y) < 0.5;
   vec3 dirt = vec3(0.47, 0.33, 0.22);
-  vec3 grass = vec3(0.36, 0.62, 0.22);
+  vec3 grass = uGrassColor * 1.6;
   if (m == M_GRASS) {
-    if (top) return grass * k;
+    if (top) {
+      // Flowers dotted over grass tops, in patches.
+      float fp = smoothstep(0.45, 0.65, vnoise(cell.xz * 0.15 + uVegSeed));
+      if (uFlowers > 0.0 && hash13(vec3(tx, cell.x * 3.0 + cell.z)) < uFlowers * 0.12 * fp) return mix(uFlowerColor, vec3(0.95), step(0.7, r2));
+      return grass * k;
+    }
     if (side) {
       float fringe = 13.0 - floor(r2 * 3.0);
       return (tx.y >= fringe ? grass * 0.9 : dirt) * k;
@@ -225,8 +277,13 @@ vec3 blockTexture(float m, vec3 cell, vec3 n, vec2 uv) {
     }
     return vec3(0.38, 0.27, 0.16) * mix(1.0, (mod(tx.x, 4.0) < 1.0 ? 0.75 : 0.95 + 0.1 * r), uPixelTexture);
   }
+  if (m == M_CACTUS) {
+    if (!side) return vec3(0.3, 0.55, 0.25) * k;
+    return vec3(0.25, 0.5, 0.2) * mix(1.0, (mod(tx.x, 4.0) < 1.0 ? 0.7 : (r > 0.92 ? 1.4 : 0.95)), uPixelTexture);
+  }
+  if (m == M_SPRUCE) return uLeafColor * vec3(0.85, 1.05, 1.0) * 1.2 * mix(1.0, (r < 0.2 ? 0.6 : 0.8 + 0.3 * r), uPixelTexture);
   // leaves
-  return vec3(0.2, 0.45, 0.14) * mix(1.0, (r < 0.2 ? 0.55 : 0.85 + 0.3 * r), uPixelTexture);
+  return uLeafColor * 1.45 * mix(1.0, (r < 0.2 ? 0.55 : 0.85 + 0.3 * r), uPixelTexture);
 }
 
 // ---------------------------------------------------------------- sky
@@ -289,7 +346,7 @@ Hit traceBlocks(vec3 ro, vec3 rd, int maxSteps, bool trees, bool stopAtWater) {
   h.waterT = -1.0;
   h.waterN = vec3(0.0, 1.0, 0.0);
   rd = vec3(abs(rd.x) < 1e-5 ? 1e-5 : rd.x, abs(rd.y) < 1e-5 ? 1e-5 : rd.y, abs(rd.z) < 1e-5 ? 1e-5 : rd.z);
-  float ceilingY = (uHeight * 1.5) / uBlockSize + 9.0;
+  float ceilingY = (uHeight * 1.5) / uBlockSize + 13.0;
   float t0 = 0.0;
   // Skip empty space above the tallest possible terrain.
   if (ro.y > ceilingY) {
@@ -298,7 +355,7 @@ Hit traceBlocks(vec3 ro, vec3 rd, int maxSteps, bool trees, bool stopAtWater) {
   }
   // Leap through open air on the continuous height field (with clearance for
   // block quantisation and trees), then walk blocks only near the surface.
-  float clearance = (trees ? 9.0 : 2.0);
+  float clearance = (trees ? 13.0 : 2.0);
   for (int i = 0; i < 48; i++) {
     vec3 q = ro + rd * t0;
     float gap = q.y - (terrain(q.xz * uBlockSize) / uBlockSize + clearance);

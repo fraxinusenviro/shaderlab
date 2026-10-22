@@ -3,11 +3,12 @@ import { valuesEqualType } from '../params/parse';
 import { CAMERA_PARAMS, LANDSCAPE_SCENES, WORLD_PARAMS } from '../landscape/scenes';
 import { LANDSCAPE_DEFAULTS, LANDSCAPE_PARAMS, paramDef, randomWorld, sceneValues, STUDIO_DEFAULTS, varyWorld, VOXEL_PARAMS } from '../landscape/store';
 import { parseHash } from '../hooks/useHashRoute';
+import { BIOMES, randomBiome, VEGETATION_PARAMS } from '../landscape/biomes';
 
 describe('landscape shader parameters', () => {
   it('exposes grouped terrain / water / sky / camera controls', () => {
     const groups = new Set(LANDSCAPE_PARAMS.map((d) => d.group));
-    expect([...groups].sort()).toEqual(['Camera', 'Sky', 'Terrain', 'Water']);
+    expect([...groups].sort()).toEqual(['Camera', 'Sky', 'Terrain', 'Vegetation', 'Water']);
     expect(paramDef('uStyle')!.options!.map((o) => o.label)).toEqual(['Mountains', 'Rolling hills', 'Archipelago', 'Canyons', 'Dunes']);
     for (const k of [...WORLD_PARAMS, ...CAMERA_PARAMS]) expect(paramDef(k), k).toBeDefined();
   });
@@ -54,7 +55,32 @@ describe('block (voxel) render style', () => {
       expect(b, k).toBeDefined();
       expect({ type: b!.type, min: b!.min, max: b!.max, default: b!.default }).toEqual({ type: a.type, min: a.min, max: a.max, default: a.default });
     }
-    expect(VOXEL_PARAMS.filter((d) => d.group === 'Blocks').map((d) => d.name)).toEqual(['uBlockSize', 'uTrees', 'uPixelTexture', 'uEdges']);
+    expect(VOXEL_PARAMS.filter((d) => d.group === 'Blocks').map((d) => d.name)).toEqual(['uBlockSize', 'uPixelTexture', 'uEdges']);
+  });
+});
+
+describe('vegetation generator', () => {
+  it('both render styles expose identical vegetation controls', () => {
+    const veg = (list: typeof LANDSCAPE_PARAMS) => list.filter((d) => d.group === 'Vegetation').map(({ name, type, min, max, default: def, widget }) => ({ name, type, min, max, def, widget }));
+    expect(veg(LANDSCAPE_PARAMS)).toEqual(veg(VOXEL_PARAMS));
+    expect(veg(LANDSCAPE_PARAMS).map((d) => d.name)).toEqual(VEGETATION_PARAMS);
+  });
+  it.each(BIOMES.map((b) => [b.id, b] as const))('biome %s sets valid, in-range parameters', (_id, b) => {
+    for (const [k, v] of Object.entries(b.values)) {
+      const def = paramDef(k)!;
+      expect(def, k).toBeDefined();
+      expect(def.group).toBe('Vegetation');
+      expect(valuesEqualType(def, v)).toBe(true);
+      for (const x of Array.isArray(v) ? v : [v as number]) {
+        expect(x).toBeGreaterThanOrEqual(def.min);
+        expect(x).toBeLessThanOrEqual(def.max);
+      }
+    }
+  });
+  it('random biomes are reproducible blends', () => {
+    expect(randomBiome(5)).toEqual(randomBiome(5));
+    const b = randomBiome(9);
+    for (const [k, v] of Object.entries(b)) expect(valuesEqualType(paramDef(k)!, v), k).toBe(true);
   });
 });
 
