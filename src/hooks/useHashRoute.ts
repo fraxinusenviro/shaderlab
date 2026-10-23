@@ -2,7 +2,8 @@ import { useSyncExternalStore } from 'react';
 
 /**
  * Hash routing works on GitHub Pages without server rewrites:
- *   #/                  editor workspace
+ *   #/                  start page (Settings → Start page; the viewer by default)
+ *   #/edit              editor workspace
  *   #/shader/<id>       editor with a project
  *   #/gallery           variant gallery
  *   #/compare           A/B comparison
@@ -24,6 +25,7 @@ export function parseHash(hash: string): Route {
   if (head === 'landscape') return { view: 'landscape', query };
   if (head === 'fractal') return { view: 'fractal', query };
   if (head === 'view') return { view: 'view', shaderId: id, query };
+  if (head === 'edit') return { view: 'workspace', query };
   if (head === 'shader' && id) return { view: 'workspace', shaderId: id, query };
   return { view: 'workspace', query };
 }
@@ -41,7 +43,7 @@ export function useHashRoute(): Route {
 }
 
 export function navigate(view: View, shaderId?: string): void {
-  if (view === 'workspace') window.location.hash = shaderId ? `#/shader/${encodeURIComponent(shaderId)}` : '#/';
+  if (view === 'workspace') window.location.hash = shaderId ? `#/shader/${encodeURIComponent(shaderId)}` : '#/edit';
   else if (view === 'view') window.location.hash = shaderId ? `#/view/${encodeURIComponent(shaderId)}` : '#/view';
   else window.location.hash = `#/${view}`;
 }

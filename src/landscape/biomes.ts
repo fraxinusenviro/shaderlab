@@ -12,7 +12,7 @@ export interface Biome {
   values: Record<string, ParamValue>;
 }
 
-export const VEGETATION_PARAMS = ['uVegetation', 'uForest', 'uForestPatch', 'uConifer', 'uTreeSize', 'uTreeVariety', 'uTreeLine', 'uShrubs', 'uFlowers', 'uCacti', 'uLeafColor', 'uGrassColor', 'uFlowerColor', 'uVegSeed'];
+export const VEGETATION_PARAMS = ['uPlants', 'uVegetation', 'uForest', 'uForestPatch', 'uConifer', 'uTreeSize', 'uTreeVariety', 'uTreeLine', 'uShrubs', 'uFlowers', 'uCacti', 'uLeafColor', 'uGrassColor', 'uFlowerColor', 'uVegSeed'];
 
 export const BIOMES: Biome[] = [
   { id: 'boreal', name: 'Boreal forest', description: 'Dense dark conifers up to a high tree line.', values: { uVegetation: 0.7, uForest: 0.8, uForestPatch: 0.35, uConifer: 0.92, uTreeSize: 1.1, uTreeVariety: 0.5, uTreeLine: 1.6, uShrubs: 0.2, uFlowers: 0.03, uLeafColor: [0.09, 0.2, 0.1], uGrassColor: [0.22, 0.27, 0.12] } },

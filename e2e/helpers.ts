@@ -13,7 +13,7 @@ export async function lowRes(page: Page): Promise<void> {
   });
 }
 
-export async function boot(page: Page, hash = ''): Promise<void> {
+export async function boot(page: Page, hash = '#/edit'): Promise<void> {
   await lowRes(page);
   await page.goto(`./${hash}`);
   await expect(page.getByTestId('main-canvas')).toBeVisible();

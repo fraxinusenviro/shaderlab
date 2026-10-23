@@ -146,11 +146,13 @@ export class ShaderRenderer {
   private contextLost = false;
   /** Shadertoy iMouse: xy = current position while pressed, zw = click position (negated when released). */
   mouse = [0, 0, 0, 0];
-  /** Position of the pointer over the canvas in drawing-buffer pixels (for u_mouse/mouse). */
-  pointer = [0, 0];
+  /** Position of the pointer over the canvas in drawing-buffer pixels (for u_mouse/mouse); -1 when outside. */
+  pointer = [-1, -1];
   /** Drawing-buffer width that `mouse`/`pointer` were recorded at (0 = the current one). */
   pointerRefWidth = 0;
   private resizeObserver: ResizeObserver | null = null;
+  private visibilityObserver: IntersectionObserver | null = null;
+  private visible = true;
   private fixedSize: { w: number; h: number } | null = null;
 
   constructor(canvas: HTMLCanvasElement, opts: { preferWebGL2?: boolean; clock?: Clock; preserveDrawingBuffer?: boolean; observeResize?: boolean } = {}) {
@@ -168,6 +170,18 @@ export class ShaderRenderer {
         this.dirty = true;
       });
       this.resizeObserver.observe(canvas);
+    }
+    // Like Radiant: a canvas scrolled out of view (or hidden) draws nothing.
+    if (opts.observeResize !== false && typeof IntersectionObserver !== 'undefined') {
+      this.visibilityObserver = new IntersectionObserver((entries) => {
+        const e = entries[entries.length - 1];
+        this.visible = e.isIntersecting;
+        if (this.visible) {
+          this.clock.resync();
+          this.dirty = true;
+        }
+      });
+      this.visibilityObserver.observe(canvas);
     }
   }
 
@@ -409,6 +423,7 @@ export class ShaderRenderer {
   }
 
   private tick(now: number): void {
+    if (!this.visible) return;
     const cap = this.settings.fpsCap;
     if (cap > 0 && now - this.lastDraw < 1000 / cap - 1) return;
     const advanced = this.clock.advance(now);
@@ -626,6 +641,7 @@ export class ShaderRenderer {
     this.stop();
     this.disposed = true;
     this.resizeObserver?.disconnect();
+    this.visibilityObserver?.disconnect();
     this.canvas.removeEventListener('webglcontextlost', this.handleLost);
     this.canvas.removeEventListener('webglcontextrestored', this.handleRestored);
     const gl = this.gl;

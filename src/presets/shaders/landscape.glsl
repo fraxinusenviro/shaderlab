@@ -10,6 +10,7 @@ uniform float uHeight;       // @param default=1.6 min=0.1 max=4 step=0.01 label
 uniform float uRoughness;    // @param default=0.5 min=0.3 max=0.65 step=0.005 label="Roughness" group=Terrain
 uniform int uOctaves;        // @param default=7 min=2 max=9 label="Detail octaves" group=Terrain
 uniform float uSnowLine;     // @param default=1.6 min=0 max=4 step=0.01 label="Snow line" group=Terrain
+uniform bool uPlants;        // @param default=true label="Plants (trees, shrubs, flowers)" group=Vegetation
 uniform float uVegetation;   // @param default=0.6 min=0 max=1 step=0.01 label="Grass cover" group=Vegetation
 uniform float uForest;       // @param default=0.45 min=0 max=1 step=0.01 label="Forest density" group=Vegetation
 uniform float uForestPatch;  // @param default=0.55 min=0 max=1 step=0.01 label="Forest clumping" group=Vegetation
@@ -41,18 +42,8 @@ uniform float uPitch;        // @param default=-0.12 min=-0.9 max=0.5 step=0.005
 uniform float uHeading;      // @param widget=angle default=0.3 min=0 max=6.2832 label="Heading" group=Camera
 uniform float uFlySpeed;     // @param default=0.4 min=0 max=3 step=0.01 label="Flight speed" group=Camera
 uniform float uFov;          // @param default=1.4 min=0.6 max=3 step=0.01 label="Lens (focal length)" group=Camera
+uniform vec2 uPan;           // @param default=0,0 min=-500 max=500 step=0.001 label="Camera position" group=Camera
 uniform int uQuality;        // @param options="Draft:0,Balanced:1,High:2" default=1 label="Render quality" group=Camera
-uniform int uTerrainSource;  // @param options="Procedural:0,Elevation data:1" default=0 label="Terrain source" group=Elevation
-uniform float uDemMin;       // @param default=0 min=-500 max=9000 step=0.1 label="Data minimum (m)" group=Elevation
-uniform float uDemMax;       // @param default=100 min=-500 max=9000 step=0.1 label="Data maximum (m)" group=Elevation
-uniform float uDemSizeM;     // @param default=10000 min=50 max=1000000 step=1 label="Data width (m)" group=Elevation
-uniform float uDemAspect;    // @param default=1 min=0.1 max=10 step=0.001 label="Data height/width" group=Elevation
-uniform float uDemSpan;      // @param default=14 min=3 max=40 step=0.1 label="Model size" group=Elevation
-uniform float uDemExaggeration; // @param default=2 min=0.25 max=12 step=0.05 label="Vertical exaggeration" group=Elevation
-uniform int uDemColor;       // @param options="Natural:0,Hypsometric:1,Greyscale:2" default=0 label="Colouring" group=Elevation
-uniform float uContours;     // @param default=0 min=0 max=500 step=1 label="Contour interval (m, 0 = off)" group=Elevation
-uniform int uCamMode;        // @param options="Flyover:0,Orbit:1" default=0 label="Camera path" group=Camera
-uniform float uOrbitRadius;  // @param default=9 min=1 max=40 step=0.1 label="Orbit radius" group=Camera
 
 // ---------------------------------------------------------------- noise
 
@@ -88,57 +79,7 @@ float fbm5(vec2 p) {
 
 // ---------------------------------------------------------------- terrain
 
-
-// ---------------------------------------------------------------- elevation data
-// iChannel0 holds the DEM: R,G = 16-bit height normalised to [uDemMin, uDemMax],
-// B = valid mask. World +z is north; the model spans uDemSpan units east-west.
-
-float demScale() { return (uDemMax - uDemMin) / uDemSizeM * uDemSpan * uDemExaggeration; }
-
-float demTexel(vec2 ij, vec2 res, out float valid) {
-  vec4 t = texture(iChannel0, (clamp(ij, vec2(0.0), res - 1.0) + 0.5) / res);
-  valid = step(0.5, t.b);
-  return (floor(t.r * 255.0 + 0.5) * 256.0 + floor(t.g * 255.0 + 0.5)) / 65535.0;
-}
-
-// Normalised height (0..1) with manual bilinear filtering; -1 = no data.
-float demSample(vec2 uv) {
-  vec2 res = max(iChannelResolution[0].xy, vec2(2.0));
-  vec2 f = uv * res - 0.5;
-  vec2 i = floor(f);
-  vec2 t = f - i;
-  float v00, v10, v01, v11;
-  float h00 = demTexel(i, res, v00);
-  float h10 = demTexel(i + vec2(1.0, 0.0), res, v10);
-  float h01 = demTexel(i + vec2(0.0, 1.0), res, v01);
-  float h11 = demTexel(i + vec2(1.0, 1.0), res, v11);
-  vec4 w = vec4((1.0 - t.x) * (1.0 - t.y), t.x * (1.0 - t.y), (1.0 - t.x) * t.y, t.x * t.y) * vec4(v00, v10, v01, v11);
-  float ws = w.x + w.y + w.z + w.w;
-  if (ws < 0.25) return -1.0;
-  return (h00 * w.x + h10 * w.y + h01 * w.z + h11 * w.w) / ws;
-}
-
-float demHeight(vec2 xz) {
-  vec2 span = vec2(uDemSpan, uDemSpan * uDemAspect);
-  vec2 uv = xz / span + 0.5;
-  vec2 outside = max(max(-uv, uv - 1.0), 0.0) * span;
-  float h = demSample(clamp(uv, 0.0, 1.0));
-  float base = -0.04 * uDemSpan / 14.0;
-  float world = h < 0.0 ? base : h * demScale();
-  // Beyond the data the terrain continues from its edge and eases down to a base plane.
-  return mix(world, base - 0.1, smoothstep(0.0, 2.5, max(outside.x, outside.y)));
-}
-
-float demElevation(float worldY) {
-  return uDemMin + worldY / max(1e-6, uDemSpan * uDemExaggeration) * uDemSizeM;
-}
-
-float terrainTop() {
-  return uTerrainSource == 1 ? demScale() : uHeight * 1.5;
-}
-
 float terrain(vec2 xz) {
-  if (uTerrainSource == 1) return demHeight(xz);
   vec2 p = xz * 0.35 / uScale + vec2(uSeed * 7.31, uSeed * 3.17);
   float h;
   if (uStyle == 0) {
@@ -240,7 +181,25 @@ float gDist = 0.0; // distance of the shaded point from the camera (for LOD)
 float vegHash(vec2 c, float k) { return hash12(c * 1.37 + vec2(k * 17.31 + uVegSeed * 3.71, k * 5.13)); }
 float plantCell() { return 0.16 * uTreeSize; }
 float vegFar() { return uQuality == 0 ? 4.0 : uQuality == 1 ? 9.0 : 18.0; }
-bool vegEnabled() { return uForest > 0.0 || uShrubs > 0.0 || (uStyle >= 3 && uCacti > 0.0); }
+bool vegEnabled() { return uPlants && (uForest > 0.0 || uShrubs > 0.0 || (uStyle >= 3 && uCacti > 0.0)); }
+// Value noise in 3D (crown surface detail).
+float vnoise3(vec3 p) {
+  vec3 i = floor(p), f = fract(p);
+  f = f * f * (3.0 - 2.0 * f);
+  float n = i.x + i.y * 57.0 + i.z * 113.0;
+  vec4 a = fract(sin(vec4(n, n + 1.0, n + 57.0, n + 58.0)) * 43758.5453);
+  vec4 b = fract(sin(vec4(n + 113.0, n + 114.0, n + 170.0, n + 171.0)) * 43758.5453);
+  vec4 m = mix(a, b, f.z);
+  vec2 r = mix(m.xy, m.zw, f.y);
+  return mix(r.x, r.y, f.x);
+}
+// Natural foliage: pull towards the colour's luminance and vary hue per plant.
+vec3 foliageTint(vec3 base, float v, float w) {
+  float l = dot(base, vec3(0.3, 0.55, 0.15));
+  vec3 c = mix(vec3(l), base, 0.66);
+  c *= mix(vec3(1.08, 1.0, 0.78), vec3(0.85, 0.97, 1.05), v); // yellow-green .. blue-green
+  return c * (0.7 + 0.45 * w);
+}
 float forestMask(vec2 xz) {
   float clump = vnoise(xz * 0.9 / uTreeSize + vec2(uVegSeed * 1.3, 7.1));
   return uForest * mix(1.0, smoothstep(0.42, 0.62, clump), uForestPatch);
@@ -278,7 +237,7 @@ Plant plantAt(vec2 cell) {
   if (slope > (tree ? 0.85 : 1.2)) return pl;
   pl.base = vec3(xz.x, y - 0.004, xz.y);
   pl.v = vegHash(cell, 5.0);
-  pl.s = G * (1.0 + (pl.v - 0.5) * uTreeVariety * 1.2);
+  pl.s = G * (1.0 + (pl.v - 0.5) * uTreeVariety * 1.2) * mix(0.75, 1.15, vnoise(xz * 1.7 + 3.0));
   if (desert) pl.kind = tree ? 4.0 : 3.0;
   else if (shrub) pl.kind = 3.0;
   else {
@@ -286,8 +245,9 @@ Plant plantAt(vec2 cell) {
     pl.kind = vegHash(cell, 6.0) < con ? 1.0 : 2.0;
   }
   float tv = vegHash(cell, 7.0);
-  pl.tint = uLeafColor * (0.75 + 0.5 * tv) * (pl.kind == 1.0 ? vec3(0.8, 0.95, 0.9) : vec3(1.0));
-  if (pl.kind == 3.0) pl.tint *= desert ? vec3(1.3, 1.1, 0.7) : vec3(0.85);
+  pl.tint = foliageTint(uLeafColor, vegHash(cell, 8.0), tv);
+  if (pl.kind == 1.0) pl.tint *= vec3(0.6, 0.72, 0.74);
+  if (pl.kind == 3.0) pl.tint *= desert ? vec3(1.25, 1.08, 0.75) : vec3(0.9, 0.95, 0.85);
   return pl;
 }
 
@@ -309,31 +269,37 @@ vec2 plantSDF(vec3 p, Plant pl) {
   vec3 q = p - pl.base;
   float s = pl.s;
   if (pl.kind == 1.0) {
-    float H = 1.15 * s;
-    float trunk = sdCapsule(q, vec3(0.0), vec3(0.0, 0.3 * H, 0.0), 0.03 * s);
-    float f = 1e5;
-    for (int i = 0; i < 3; i++) {
-      float fi = float(i);
-      float yb = (0.16 + fi * 0.24) * H;
-      f = min(f, sdConeY(q, yb, yb + (0.48 - fi * 0.06) * H, 0.29 * s * (1.0 - fi * 0.24)));
-    }
+    // Conifer: narrow, many drooping tiers with ragged edges.
+    float H = (1.05 + 0.3 * pl.v) * s;
+    float trunk = sdCapsule(q, vec3(0.0), vec3(0.0, 0.25 * H, 0.0), 0.022 * s);
+    float r = length(q.xz);
+    float a = atan(q.z, q.x);
+    float h = clamp(q.y / H, 0.0, 1.0);
+    float tiers = fract(h * 6.0 + pl.v);
+    float rad = 0.3 * s * pow(1.0 - h, 0.9) * (0.6 + 0.4 * tiers) * (0.9 + 0.1 * sin(a * 7.0 + pl.v * 20.0 + h * 9.0));
+    float f = max((r - rad) * 0.8, max(0.12 * H - q.y, q.y - H));
+    f += 0.012 * s * (vnoise3(q * 60.0 / s) - 0.5);
     return f < trunk ? vec2(f, 2.0) : vec2(trunk, 1.0);
   }
   if (pl.kind == 2.0) {
-    float trunk = sdCapsule(q, vec3(0.0), vec3(0.0, 0.5 * s, 0.0), 0.035 * s);
-    vec3 c = q - vec3(0.0, 0.62 * s, 0.0);
-    float k = 38.0 / s;
-    float bumps = 0.045 * s * sin(c.x * k + pl.v * 6.0) * sin(c.y * k) * sin(c.z * k + 1.3);
-    float crown = (length(c * vec3(1.0, 1.25, 1.0)) - 0.27 * s) / 1.25;
-    vec3 c2 = c - vec3(0.12, -0.05, 0.08) * s * (pl.v - 0.3);
-    crown = min(crown, (length(c2 * vec3(1.0, 1.2, 1.0)) - 0.2 * s) / 1.2) + bumps;
-    return crown < trunk ? vec2(crown * 0.85, 2.0) : vec2(trunk, 1.0);
+    // Broadleaf: a few overlapping lobes over a short trunk, lumpy surface.
+    float trunk = sdCapsule(q, vec3(0.0), vec3(0.03 * s * (pl.v - 0.5), 0.36 * s, 0.0), 0.034 * s);
+    vec3 c = q - vec3(0.0, 0.5 * s, 0.0);
+    float crown = (length(c * vec3(1.0, 1.15, 1.0)) - 0.28 * s) / 1.15;
+    for (int i = 0; i < 3; i++) {
+      float fi = float(i);
+      float ang = fi * 2.094 + pl.v * 6.283;
+      vec3 o = vec3(cos(ang), -0.35 + 0.5 * fract(pl.v * 7.0 + fi * 0.37), sin(ang)) * 0.17 * s;
+      crown = min(crown, (length((c - o) * vec3(1.0, 1.2, 1.0)) - (0.16 + 0.04 * fi) * s) / 1.2);
+    }
+    crown += 0.06 * s * (vnoise3(c * 11.0 / s + pl.v * 9.0) - 0.45) + 0.012 * s * (vnoise3(c * 60.0 / s) - 0.5);
+    return crown < trunk ? vec2(crown * 0.8, 2.0) : vec2(trunk, 1.0);
   }
   if (pl.kind == 3.0) {
-    vec3 c = q - vec3(0.0, 0.05 * s, 0.0);
-    float k = 60.0 / s;
-    float d = (length(c * vec3(1.0, 1.5, 1.0)) - 0.1 * s) / 1.5 + 0.02 * s * sin(c.x * k) * sin(c.y * k) * sin(c.z * k);
-    return vec2(d * 0.85, 2.0);
+    vec3 c = q - vec3(0.0, 0.04 * s, 0.0);
+    float d = (length(c * vec3(1.0, 1.6, 1.0)) - 0.09 * s) / 1.6;
+    d += 0.025 * s * (vnoise3(c * 55.0 / s + pl.v * 5.0) - 0.45);
+    return vec2(d * 0.8, 2.0);
   }
   // Cactus: trunk and one or two arms.
   float d = sdCapsule(q, vec3(0.0), vec3(0.0, 0.55 * s, 0.0), 0.045 * s);
@@ -366,36 +332,11 @@ float canopyShadow(vec3 p, vec3 sd) {
   return mix(0.45, 1.0, smoothstep(0.22 * pl.s, 0.3 * pl.s, r));
 }
 
-// Elevation-data colouring: hypsometric tint / greyscale and contour lines.
-vec3 hypsometric(float t) {
-  vec3 c = mix(vec3(0.16, 0.42, 0.22), vec3(0.55, 0.66, 0.3), smoothstep(0.0, 0.3, t));
-  c = mix(c, vec3(0.86, 0.78, 0.48), smoothstep(0.25, 0.55, t));
-  c = mix(c, vec3(0.62, 0.42, 0.28), smoothstep(0.5, 0.8, t));
-  return mix(c, vec3(0.96, 0.96, 0.98), smoothstep(0.82, 1.0, t));
-}
-vec3 demColour(vec3 natural, vec3 p, vec3 n) {
-  float e = demElevation(p.y);
-  vec3 col = natural;
-  float t = clamp((e - uDemMin) / max(1e-3, uDemMax - uDemMin), 0.0, 1.0);
-  if (uDemColor == 1) col = hypsometric(t);
-  else if (uDemColor == 2) col = vec3(0.72);
-  if (uContours > 0.0) {
-    float c = e / uContours;
-    float d = abs(fract(c + 0.5) - 0.5) * uContours;            // metres to nearest contour
-    float slopeM = max(0.05, length(n.xz) / max(n.y, 0.05));      // metres of rise per metre
-    float pix = (0.0006 + 0.0012 * gDist) * uDemSizeM / uDemSpan; // ground metres per pixel, roughly
-    float w = slopeM * pix;
-    bool major = mod(floor(c + 0.5), 5.0) == 0.0;
-    float line = 1.0 - smoothstep(w * (major ? 1.2 : 0.6), w * (major ? 2.2 : 1.3), d);
-    col = mix(col, col * 0.35, line * (major ? 0.9 : 0.6));
-  }
-  return col;
-}
-
 vec3 terrainMaterial(vec3 p, vec3 n) {
   float slope = n.y;
   vec3 rock = uRock * (0.8 + 0.4 * vnoise(p.xz * 8.0));
-  vec3 grass = uGrassColor * mix(0.72, 1.25, vnoise(p.xz * 3.0));
+  vec3 grass = mix(vec3(dot(uGrassColor, vec3(0.3, 0.55, 0.15))), uGrassColor, 0.8) * mix(0.75, 1.2, vnoise(p.xz * 3.0));
+  grass = mix(grass, grass * vec3(1.25, 1.05, 0.7), smoothstep(0.55, 0.85, vnoise(p.xz * 0.7 + 4.0)) * 0.6);
   vec3 sand = vec3(0.76, 0.68, 0.5);
   if (uStyle == 4) sand = vec3(0.86, 0.66, 0.42);
   vec3 col = rock;
@@ -403,18 +344,18 @@ vec3 terrainMaterial(vec3 p, vec3 n) {
   if (uStyle == 4) g *= 0.15;
   col = mix(col, grass, g);
   // Wildflower meadows (near the camera only).
-  if (uFlowers > 0.0 && gDist < 6.0) {
+  if (uPlants && uFlowers > 0.0 && gDist < 4.0) {
     vec2 fc = floor(p.xz * 220.0);
     float fpatch = smoothstep(0.45, 0.7, vnoise(p.xz * 2.5 + uVegSeed));
-    float speck = step(1.0 - 0.3 * uFlowers, hash12(fc + uVegSeed));
-    vec3 fcol = mix(uFlowerColor, vec3(0.95, 0.93, 0.9), step(0.75, hash12(fc + 3.1)));
-    col = mix(col, fcol, g * fpatch * speck * (1.0 - smoothstep(3.0, 6.0, gDist)));
+    float speck = step(1.0 - 0.18 * uFlowers, hash12(fc + uVegSeed));
+    vec3 fcol = mix(uFlowerColor, vec3(0.9, 0.88, 0.82), step(0.7, hash12(fc + 3.1))) * 0.8;
+    col = mix(col, fcol, 0.7 * g * fpatch * speck * (1.0 - smoothstep(1.5, 4.0, gDist)));
   }
   // Distant forests: canopy texture instead of individual trees.
-  if (uStyle < 3 && uForest > 0.0) {
+  if (uPlants && uStyle < 3 && uForest > 0.0) {
     float cover = forestMask(p.xz) * treeLineMask(p.y) * smoothstep(0.7, 0.85, slope) * step(uWaterLevel + 0.03, p.y);
     cover *= smoothstep(vegFar() * 0.75, vegFar(), gDist);
-    vec3 canopy = uLeafColor * mix(0.45, 0.95, vnoise(p.xz * 22.0 / uTreeSize)) * mix(vec3(1.0), vec3(0.8, 0.95, 0.9), uConifer);
+    vec3 canopy = foliageTint(uLeafColor, vnoise(p.xz * 3.0), 0.5) * mix(0.4, 0.85, vnoise(p.xz * 22.0 / uTreeSize)) * mix(vec3(1.0), vec3(0.72, 0.86, 0.86), uConifer);
     col = mix(col, canopy, clamp(cover * 1.6, 0.0, 0.92));
   }
   float beach = 1.0 - smoothstep(uWaterLevel + 0.015, uWaterLevel + 0.05 + 0.04 * vnoise(p.xz * 5.0), p.y);
@@ -422,7 +363,6 @@ vec3 terrainMaterial(vec3 p, vec3 n) {
   if (uStyle == 4) col = mix(col, sand, 0.75);
   float snow = smoothstep(uSnowLine, uSnowLine + 0.15, p.y + 0.15 * vnoise(p.xz * 4.0)) * smoothstep(0.55, 0.75, slope);
   col = mix(col, vec3(0.93, 0.95, 1.0), snow);
-  if (uTerrainSource == 1) col = demColour(col, p, n);
   return col;
 }
 
@@ -435,7 +375,7 @@ float softShadow(vec3 ro, vec3 rd) {
     float h = p.y - terrain(p.xz);
     res = min(res, 10.0 * h / t);
     t += clamp(h * 0.6, 0.05, 0.6);
-    if (res < 0.02 || p.y > terrainTop()) break;
+    if (res < 0.02 || p.y > uHeight * 1.5) break;
   }
   return clamp(res, 0.0, 1.0);
 }
@@ -448,14 +388,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
   float pitch = uPitch + (iMouse.z > 0.0 ? (iMouse.y / iResolution.y - 0.5) * 1.2 : 0.0);
   float heading = uHeading + look;
   vec2 dir = vec2(sin(uHeading), cos(uHeading));
-  vec2 camXZ = dir * iTime * uFlySpeed;
-  if (uCamMode == 1) {
-    // Orbit around the model centre, looking at it.
-    float a = uHeading + iTime * uFlySpeed * 0.12;
-    camXZ = -vec2(sin(a), cos(a)) * uOrbitRadius;
-    dir = vec2(sin(a), cos(a));
-    heading = a + look;
-  }
+  vec2 camXZ = dir * iTime * uFlySpeed + uPan;
   float ground = max(max(terrain(camXZ), terrain(camXZ + dir * 1.2)), uWaterLevel);
   vec3 ro = vec3(camXZ.x, ground + uAltitude, camXZ.y);
   vec3 fw = normalize(vec3(sin(heading), pitch, cos(heading)));
@@ -518,9 +451,16 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
     vec3 p = ro + rd * t;
     vec3 n = plantNormal(p, hitPlant);
     vec3 mat = hitMat == 1.0 ? vec3(0.3, 0.22, 0.15) : hitMat == 3.0 ? vec3(0.27, 0.45, 0.22) : hitPlant.tint;
-    if (hitMat == 2.0) mat *= 0.7 + 0.6 * hash12(floor(p.xz * 900.0 + p.y * 700.0));
-    float ao = hitPlant.kind <= 2.0 ? 0.45 + 0.55 * clamp((p.y - hitPlant.base.y) / (1.1 * hitPlant.s), 0.0, 1.0) : 0.8;
-    float dif = (0.25 + 0.75 * max(dot(n, sd), 0.0)) * softShadow(p + n * 0.005, sd);
+    if (hitMat == 2.0) mat *= 0.85 + 0.3 * hash12(floor(p.xz * 900.0 + p.y * 700.0));
+    // Self-occlusion: darker low in the crown and in its hollows.
+    float hgt = clamp((p.y - hitPlant.base.y) / (1.2 * hitPlant.s), 0.0, 1.0);
+    float ao = hitPlant.kind <= 2.0 ? 0.3 + 0.7 * hgt * hgt : 0.75;
+    if (hitMat == 2.0) ao *= 0.6 + 0.4 * clamp(plantSDF(p + n * 0.03 * hitPlant.s, hitPlant).x / (0.03 * hitPlant.s), 0.0, 1.0);
+    float ndl = dot(n, sd);
+    float wrap = hitMat == 2.0 ? clamp((ndl + 0.35) / 1.35, 0.0, 1.0) : max(ndl, 0.0);
+    float dif = wrap * softShadow(p + n * 0.005, sd);
+    // Light through the leaves when looking towards the sun.
+    if (hitMat == 2.0) dif += 0.25 * pow(max(dot(rd, sd), 0.0), 4.0) * (1.0 - hgt * 0.5);
     vec3 skyAmb = skyColor(vec3(0.0, 1.0, 0.0), false);
     vec3 moon = vec3(0.025, 0.035, 0.07) * (1.0 - smoothstep(-0.1, 0.1, uSunElevation));
     col = mat * (dif * sc * 1.4 + ao * (skyAmb * 0.45 + moon) + 0.01);

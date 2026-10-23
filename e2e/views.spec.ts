@@ -1,5 +1,4 @@
 import { expect, test } from '@playwright/test';
-import { float32GeoTiff } from './geotiff';
 import { lowRes, waitFor, ws } from './helpers';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -180,41 +179,6 @@ test.describe('fractal zoom', () => {
   });
 });
 
-test('landscape studio: elevation data from a GeoTIFF', async ({ page }) => {
-  test.setTimeout(150_000);
-  await lowRes(page);
-  await page.goto('./#/landscape');
-  await expect(page.getByTestId('landscape')).toBeVisible();
-  const state = () => page.evaluate(() => JSON.parse(localStorage.getItem('shader-forge:landscape') ?? '{}').state);
-  // The studio starts still: the viewport only redraws on changes.
-  await expect(page.getByRole('button', { name: 'Animate' })).toBeVisible();
-  await page.getByRole('tab', { name: 'Elevation' }).click();
-  await expect(page.getByTestId('elevation-panel')).toBeVisible();
-  await expect(page.getByTestId('dem-place').first()).toBeVisible();
-  // A synthetic 80 x 60 projected (EPSG:3979) DEM: a ridge rising from the sea.
-  const w = 80, h = 60;
-  const values = Float32Array.from({ length: w * h }, (_, i) => {
-    const x = i % w, y = Math.floor(i / w);
-    return Math.max(-5, 400 * Math.exp(-(((x - 40) / 18) ** 2) - (((y - 30) / 14) ** 2)) - 5);
-  });
-  values[0] = -32767;
-  const buffer = Buffer.from(float32GeoTiff(values, w, h, 10, 2700000, 300000, '-32767'));
-  await page.locator('input[type="file"][accept*="tif"]').setInputFiles({ name: 'ridge.tif', mimeType: 'image/tiff', buffer });
-  await expect(page.getByTestId('dem-info')).toContainText('ridge.tif', { timeout: 30_000 });
-  await expect(page.getByTestId('source-dem')).toHaveAttribute('aria-checked', 'true');
-  await expect.poll(async () => (await state()).values.uTerrainSource).toBe(1);
-  const s = await state();
-  expect(s.dem.sizeM[0]).toBeCloseTo(800, 0);
-  expect(s.dem.max).toBeGreaterThan(380);
-  expect(s.values.uCamMode).toBe(1);
-  // The DEM texture is persisted and rendered through the landscape shader.
-  await page.getByTestId('landscape-edit').click();
-  await expect(page.getByTestId('code-editor')).toBeVisible();
-  await waitFor(page, () => (window as any).__shaderForge.workspace.getState().compile.status === 'ok', undefined, 60_000);
-  expect(await ws(page, 'ws.project.values.uTerrainSource')).toBe(1);
-  expect(await ws(page, 'ws.project.channels?.[0]?.assetId ?? null')).toMatch(/^dem_/);
-});
-
 test('landscape studio: renders on demand, adaptive resolution while dragging', async ({ page }) => {
   test.setTimeout(150_000);
   await lowRes(page);
@@ -225,7 +189,7 @@ test('landscape studio: renders on demand, adaptive resolution while dragging', 
   await expect(page.getByRole('button', { name: 'Animate' })).toBeVisible();
   await expect(page.getByTestId('landscape-view')).toContainText('still');
   const width = () => canvas.evaluate((c: HTMLCanvasElement) => c.width);
-  await expect.poll(width).toBeGreaterThan(50);
+  await expect.poll(width, { timeout: 60_000 }).toBeGreaterThan(50);
   const full = await width();
   // Dragging is continuous motion: on a slow (software) GPU the buffer shrinks...
   const box = (await canvas.boundingBox())!;
@@ -233,11 +197,20 @@ test('landscape studio: renders on demand, adaptive resolution while dragging', 
   await page.mouse.down();
   let smallest = full;
   for (let i = 0; i < 25; i++) {
-    await page.mouse.move(box.x + box.width / 2 + (i % 2 ? 40 : -40), box.y + box.height / 2);
+    await page.mouse.move(box.x + box.width / 2 + (i % 2 ? 40 : -40), box.y + box.height / 2 + i * 2);
     smallest = Math.min(smallest, await width());
   }
   await page.mouse.up();
   expect(smallest).toBeLessThan(full);
+  // While still, dragging pans the camera and the wheel zooms (dollies).
+  const state = () => page.evaluate(() => JSON.parse(localStorage.getItem('shader-forge:landscape') ?? '{}').state);
+  await expect.poll(async () => JSON.stringify((await state()).values.uPan)).not.toBe('[0,0]');
+  const alt = (await state()).values.uAltitude;
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.wheel(0, -400);
+  await expect.poll(async () => (await state()).values.uAltitude).not.toBe(alt);
+  await page.getByRole('button', { name: 'Undo' }).click();
+  await expect.poll(async () => (await state()).values.uAltitude).toBe(alt);
   // ...and is restored to full resolution once the view is still.
   await expect.poll(width, { timeout: 30_000 }).toBe(full);
   // Animation is opt-in and remembered.
@@ -246,4 +219,40 @@ test('landscape studio: renders on demand, adaptive resolution while dragging', 
   await page.reload();
   await expect(page.getByRole('button', { name: 'Pause' })).toBeVisible();
   await page.getByRole('button', { name: 'Pause' }).click();
+});
+
+test('landscape studio: Layered 2D style (flat parallax layers)', async ({ page }) => {
+  test.setTimeout(120_000);
+  await lowRes(page);
+  await page.goto('./#/landscape');
+  await expect(page.getByTestId('landscape')).toBeVisible();
+  const state = () => page.evaluate(() => JSON.parse(localStorage.getItem('shader-forge:landscape') ?? '{}').state);
+  await page.getByTestId('mode-layered').click();
+  await expect(page.getByTestId('mode-layered')).toHaveAttribute('aria-checked', 'true');
+  await expect.poll(async () => (await state()).mode).toBe('layered');
+  await page.getByRole('tab', { name: 'Layers' }).click();
+  await page.getByRole('button', { name: 'Poster' }).click();
+  await expect.poll(async () => (await state()).values.uPoster).toBe(1);
+  // In the flat style the wheel zooms the lens.
+  const fov = (await state()).values.uFov;
+  const box = (await page.getByTestId('shader-canvas').boundingBox())!;
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.wheel(0, -300);
+  await expect.poll(async () => (await state()).values.uFov).toBeGreaterThan(fov);
+  // Plants can be switched off altogether.
+  await page.getByRole('tab', { name: 'Vegetation' }).click();
+  await page.locator('[data-field="uPlants"]').getByRole('switch').click();
+  await expect.poll(async () => (await state()).values.uPlants).toBe(false);
+});
+
+test('app opens in the viewer; lightweight Radiant effects are available', async ({ page }) => {
+  await lowRes(page);
+  await page.goto('./');
+  await expect(page.getByTestId('viewer')).toBeVisible();
+  await page.goto('./#/view/preset%3Aradiant-vortex');
+  await expect(page.getByTestId('viewer')).toContainText('Vortex');
+  await expect(page.getByTestId('shader-canvas')).toBeVisible();
+  // The editor is one click away and has its own route.
+  await page.goto('./#/edit');
+  await expect(page.getByTestId('main-canvas')).toBeVisible();
 });

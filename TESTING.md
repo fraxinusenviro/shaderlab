@@ -8,7 +8,7 @@ Environment: Node 22.22, Chromium (Playwright 1.56, SwiftShader software WebGL),
 | --- | --- | --- |
 | TypeScript | `npm run typecheck` | ✅ no errors |
 | ESLint | `npm run lint` | ✅ no errors or warnings |
-| Unit tests | `npm test` | ✅ 121 / 121 passed |
+| Unit tests | `npm test` | ✅ 89 / 89 passed (7 files) |
 | Production build at `/shaderlab/` | `BASE_PATH=/shaderlab/ npm run build` | ✅ built; Workbox precache of 17 entries (~1.7 MB) |
 | End-to-end smoke | `npm run test:e2e` | ✅ 21 / 21 passed (19 desktop, 2 mobile/Pixel 7) |
 
@@ -18,7 +18,9 @@ Additional manual/scripted verification during development:
 - Screenshots reviewed for: desktop workspace, compile-error banner + console, 3×3 L1–L3 variant gallery (all 9 variants compiled), A/B compare, mutation history tree, constants promotion, modulation, keyframe timeline, export dialog, light theme, and mobile (viewport, controls drawer, code drawer).
 - The Landscape Studio shader was rendered for all nine scenes under WebGL 2 and WebGL 1 and the screenshots reviewed; scene values were tuned (camera placement, night lighting and stars, dune shape, shoreline foam) from those renders.
 - The Block World (voxel) shader was rendered for all nine scenes under WebGL 2 and WebGL 1 and reviewed; water tinting, beach placement and desert sand were tuned from those renders, and tree lookup was reduced to one candidate per 5×5 cell.
-- Elevation data: CanElevation loads were checked live in a browser harness for HRDEM sites (Chéticamp 2 m, Halifax 1 m, Mont Royal 1 m, Hautes-Gorges 2 m, Percé 1 m) and MRDEM fall-back sites (Banff, North Shore BC, Gros Morne, Cape Split, Niagara), rendered in Realistic (natural and hypsometric + contours) and Blocks styles and reviewed. Automated tests use a synthetic float32 EPSG:3979 GeoTIFF (no network): unit tests cover the Lambert projection against the STAC tile bounds, height encoding, resampling, overview choice and auto-fit; an e2e test uploads the GeoTIFF through the Elevation tab and opens the result in the editor.
+- Vegetation realism (2026-10-23): close-up and distant renders of the Realistic style were reviewed before/after reshaping trees (spruce tiers, multi-lobe broadleaf crowns, self-occlusion, wrapped and back-lighting, muted foliage/grass colours) and with the *Plants* switch off, in both Realistic and Blocks styles.
+- Radiant effects: all 32 ported shaders were compiled and rendered offscreen under WebGL 2 and WebGL 1 (192×108, t = 6 s) and a contact sheet reviewed; one candidate (*Shattered Plains*) was dropped because its source is assembled by nested JavaScript and expects a normalised mouse. Per-frame cost under SwiftShader was 30–440 ms at that size versus ~1.2 s for the ray-marched landscape.
+- Layered 2D landscape: all nine scenes rendered and reviewed; ~0.25–0.45 s per 480×270 frame under SwiftShader versus ~5–6 s for the Realistic style. Terrain profiles mirror the 3D terrain types; slope shading is taken from a smoothed ridge to avoid streaks.
 - Found and fixed via e2e: a stale hash route re-opened the previous shader after a library click; React selector returning fresh arrays caused a render loop.
 
 ## Deployment status
@@ -27,7 +29,7 @@ Deployment to GitHub Pages is reported separately in the project hand-off; it is
 
 ## Manual verification checklist (live site)
 
-1. Open `https://<owner>.github.io/<repo>/` — the Mandelbrot preset renders, FPS overlay updates.
+1. Open `https://<owner>.github.io/<repo>/` — the **viewer** opens on the first preset; *Editor* (or `#/edit`) opens the workstation.
 2. DevTools → Application → Manifest: name *Shader Forge*, start URL and scope `/<repo>/`, icons load.
 3. DevTools → Application → Service workers: activated, scope `/<repo>/`. Install the app.
 4. Paste a Shadertoy shader into the editor; it compiles automatically. Add a typo: the error banner appears, the last image keeps rendering, *Revert to working* restores it.
@@ -38,5 +40,6 @@ Deployment to GitHub Pages is reported separately in the project hand-off; it is
 9. Settings → *Download full backup*; import the backup — nothing is overwritten.
 10. DevTools → Network → *Offline*, reload — the app and all presets still work.
 11. Viewer (`#/view`): browse with ← →, shuffle, open the parameter drawer, set a 10 s slideshow, try `?ui=off`, press *Edit*.
-12. Landscape studio (`#/landscape`): pick each scene, press *New world* / *Waterscape*, change water body and time of day, drag to look, export a 4K PNG, *Save*, *Open in editor*; switch to *Blocks* and try chunky/fine blocks, forest, flat colours.
+12. Landscape studio (`#/landscape`): pick each scene, press *New world* / *Waterscape*, change water body and time of day, while still drag to pan / scroll to zoom / right-drag to turn (Undo reverts), *Animate* and drag to look, switch *Plants* off, export a 4K PNG, *Save*, *Open in editor*; switch to *Blocks* and try chunky/fine blocks, forest, flat colours; switch to *Layered 2D* and try the *Layers* presets and wheel zoom.
+13. Viewer: open the *Lightweight 2D (Radiant)* category and step through the effects; with the OS "reduce motion" setting on, the viewer starts paused.
 13. On a phone: bottom bar, Library / Controls / Code drawers, sliders draggable with a thumb.

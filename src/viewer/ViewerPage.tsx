@@ -29,6 +29,8 @@ interface Entry {
   id: string;
   name: string;
   group: 'Presets' | 'My shaders';
+  /** Picker section: "My shaders" or the preset's category. */
+  section: string;
 }
 
 const SLIDESHOW = [0, 10, 20, 30, 60];
@@ -39,18 +41,26 @@ export function ViewerPage() {
   const kiosk = route.query.ui === 'off';
   const mobile = useIsMobile();
   const entries: Entry[] = useMemo(
-    () => [...summaries.map((s) => ({ id: s.id, name: s.name, group: 'My shaders' as const })), ...PRESETS.map((p) => ({ id: `preset:${p.id}`, name: p.name, group: 'Presets' as const }))],
+    () => [
+      ...summaries.map((s) => ({ id: s.id, name: s.name, group: 'My shaders' as const, section: 'My shaders' })),
+      ...PRESETS.map((p) => ({ id: `preset:${p.id}`, name: p.name, group: 'Presets' as const, section: p.category })),
+    ],
     [summaries],
   );
   const [project, setProject] = useState<ShaderProject | null>(null);
   const [values, setValues] = useState<Record<string, ParamValue>>({});
-  const [playing, setPlaying] = useState(true);
+  // Respect "reduce motion" (as Radiant does): start on a still frame; Play animates.
+  const [playing, setPlaying] = useState(() => !prefersReducedMotion());
   const [showInfo, setShowInfo] = useState(false);
   const [showTweak, setShowTweak] = useState(false);
   const [slideshow, setSlideshow] = useState(() => Number(route.query.slideshow) || 0);
   const [chromeVisible, setChromeVisible] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const clock = useMemo(() => new Clock(), []);
+  const clock = useMemo(() => {
+    const c = new Clock();
+    if (prefersReducedMotion()) c.pause();
+    return c;
+  }, []);
   const rendererRef = useRef<ShaderRenderer | null>(null);
   const idleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const currentId = route.shaderId ?? entries.find((e) => e.group === 'Presets')?.id ?? 'preset:mandelbrot';
@@ -190,11 +200,11 @@ export function ViewerPage() {
             aria-label="Choose shader"
             data-testid="viewer-picker"
           >
-            {(['My shaders', 'Presets'] as const).map((g) =>
-              entries.some((e) => e.group === g) ? (
+            {Array.from(new Set(entries.map((e) => e.section))).map((g) =>
+              entries.some((e) => e.section === g) ? (
                 <optgroup key={g} label={g}>
                   {entries
-                    .filter((e) => e.group === g)
+                    .filter((e) => e.section === g)
                     .map((e) => (
                       <option key={e.id} value={e.id}>
                         {e.name}
@@ -329,4 +339,8 @@ function IconBtn({ label, onClick, children, active, testid }: { label: string; 
       {children}
     </button>
   );
+}
+
+function prefersReducedMotion(): boolean {
+  return typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 }

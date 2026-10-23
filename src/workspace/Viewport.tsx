@@ -48,6 +48,13 @@ export function bindPointer(canvas: HTMLCanvasElement, getRenderer: () => Shader
     }
     rr.requestRender();
   };
+  // Hover position is "off canvas" again once the pointer leaves (Radiant convention: -1).
+  const onLeave = () => {
+    const rr = getRenderer();
+    if (!rr || down) return;
+    rr.pointer = [-1, -1];
+    if (rr.usesHover) rr.requestRender();
+  };
   const onUp = () => {
     const rr = getRenderer();
     down = false;
@@ -60,11 +67,13 @@ export function bindPointer(canvas: HTMLCanvasElement, getRenderer: () => Shader
   };
   canvas.addEventListener('pointerdown', onDown);
   canvas.addEventListener('pointermove', onMove);
+  canvas.addEventListener('pointerleave', onLeave);
   canvas.addEventListener('pointerup', onUp);
   canvas.addEventListener('pointercancel', onUp);
   return () => {
     canvas.removeEventListener('pointerdown', onDown);
     canvas.removeEventListener('pointermove', onMove);
+    canvas.removeEventListener('pointerleave', onLeave);
     canvas.removeEventListener('pointerup', onUp);
     canvas.removeEventListener('pointercancel', onUp);
   };

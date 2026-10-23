@@ -42,7 +42,7 @@ export const DEFAULT_SETTINGS: Settings = {
   editorFontSize: 13,
   compactControls: false,
   showStats: true,
-  startPage: 'workspace',
+  startPage: 'view',
 };
 
 export const THUMB_SIZES: Record<Settings['thumbQuality'], [number, number]> = {
@@ -63,6 +63,15 @@ export const useSettings = create<SettingsStore>()(
       set: (patch) => set(patch),
       reset: () => set(DEFAULT_SETTINGS),
     }),
-    { name: 'shader-forge:settings', version: 1 },
+    {
+      name: 'shader-forge:settings',
+      version: 2,
+      // v2: the app opens in the viewer; earlier installs stored the editor as their (default) start page.
+      migrate: (persisted, version) => {
+        const s = (persisted ?? {}) as Partial<Settings>;
+        if (version < 2 && s.startPage === 'workspace') s.startPage = 'view';
+        return s as SettingsStore;
+      },
+    },
   ),
 );

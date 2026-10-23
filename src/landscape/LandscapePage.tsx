@@ -4,7 +4,7 @@
  * terrain / water / sky / camera controls, with save-to-library, PNG export
  * and hand-off to the full editor.
  */
-import { ArrowLeft, Box, Camera, Sprout, Trees, Code2, Dice5, Eye, Maximize2, Mountain, Pause, Play, Save, Shuffle, Sparkles, Undo2, Waves } from 'lucide-react';
+import { ArrowLeft, Box, Layers, Camera, Sprout, Trees, Code2, Dice5, Eye, Maximize2, Mountain, Pause, Play, Save, Shuffle, Sparkles, Undo2, Waves } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ParamField } from '../components/ParamField';
 import { ShaderCanvas } from '../components/ShaderCanvas';
@@ -14,7 +14,6 @@ import { randomSeed } from '../mutations/rng';
 import { getPreset } from '../presets/catalog';
 import { Clock } from '../renderer/clock';
 import type { ShaderRenderer } from '../renderer/engine';
-import type { ChannelBinding } from '../types/shader';
 import { requestThumbnail } from '../renderer/offscreen';
 import { useLibrary } from '../state/library';
 import { useSettings } from '../state/settings';
@@ -24,12 +23,12 @@ import { forkProject, projectFromPreset } from '../storage/project';
 import { repository } from '../storage/repository';
 import { downloadBlob, imageDataToBlob, safeFilename } from '../utils/download';
 import { BIOMES, randomBiome } from './biomes';
-import { ElevationPanel } from './ElevationPanel';
+import { bindNavigation } from './navigation';
 import { LANDSCAPE_SCENES, type LandscapeScene } from './scenes';
 import { paramDef, randomWorld, RENDER_MODES, renderMode, sceneValues, useLandscape, varyWorld, type RenderMode } from './store';
 
-type Tab = 'scenes' | 'Terrain' | 'Elevation' | 'Vegetation' | 'Blocks' | 'Water' | 'Sky' | 'Camera';
-const GROUP_COLORS: Record<string, string> = { Elevation: '#eab308', Vegetation: '#22c55e', Blocks: '#f97316', Terrain: '#a3e635', Water: '#38bdf8', Sky: '#fbbf24', Camera: '#c084fc' };
+type Tab = 'scenes' | 'Terrain' | 'Vegetation' | 'Blocks' | 'Layers' | 'Water' | 'Sky' | 'Camera';
+const GROUP_COLORS: Record<string, string> = { Vegetation: '#22c55e', Blocks: '#f97316', Layers: '#f472b6', Terrain: '#a3e635', Water: '#38bdf8', Sky: '#fbbf24', Camera: '#c084fc' };
 
 const thumbCache = new Map<string, string>();
 
@@ -81,15 +80,12 @@ function QuickRow({ label, items }: { label: string; items: { label: string; onC
   );
 }
 
-// Data-derived uniforms are set from the loaded DEM, not edited by hand.
-const HIDDEN_FIELDS = ['uTerrainSource', 'uDemMin', 'uDemMax', 'uDemSizeM', 'uDemAspect'];
-
 function GroupControls({ group }: { group: Exclude<Tab, 'scenes'> }) {
   const values = useLandscape((s) => s.values);
   const set = useLandscape((s) => s.set);
   const setMany = useLandscape((s) => s.setMany);
   const mode = useLandscape((s) => s.mode);
-  const defs = renderMode(mode).params.filter((d) => d.group === group && !HIDDEN_FIELDS.includes(d.name));
+  const defs = renderMode(mode).params.filter((d) => d.group === group && d.name !== 'uPan');
   const h = values.uHeight as number;
   const wl = values.uWaterLevel as number;
   const se = values.uSunElevation as number;
@@ -116,14 +112,12 @@ function GroupControls({ group }: { group: Exclude<Tab, 'scenes'> }) {
           { label: 'Night', onClick: () => setMany({ uSunElevation: -0.12 }), active: se < 0 },
         ]}
       />
-    ) : group === 'Elevation' ? (
-      <ElevationPanel />
     ) : group === 'Vegetation' ? (
       <div className="flex flex-col gap-2">
         <div className="label">Biome</div>
         <div className="grid grid-cols-2 gap-1">
           {BIOMES.map((b) => (
-            <button key={b.id} className="chip justify-center py-1 hover:text-fg" title={b.description} onClick={() => setMany(b.values)} data-testid={`biome-${b.id}`}>
+            <button key={b.id} className="chip justify-center py-1 hover:text-fg" title={b.description} onClick={() => setMany({ ...b.values, uPlants: true })} data-testid={`biome-${b.id}`}>
               <Trees size={11} /> {b.name}
             </button>
           ))}
@@ -132,7 +126,7 @@ function GroupControls({ group }: { group: Exclude<Tab, 'scenes'> }) {
           <button className="btn flex-1" onClick={() => setMany({ uVegSeed: Math.floor(Math.random() * 1000) })} title="Same settings, new placement" data-testid="regrow">
             <Sprout size={13} /> Regrow
           </button>
-          <button className="btn flex-1" onClick={() => setMany(randomBiome(randomSeed()))} title="A random blend of two biomes" data-testid="random-biome">
+          <button className="btn flex-1" onClick={() => setMany({ ...randomBiome(randomSeed()), uPlants: true })} title="A random blend of two biomes" data-testid="random-biome">
             <Dice5 size={13} /> Random biome
           </button>
         </div>
@@ -149,6 +143,16 @@ function GroupControls({ group }: { group: Exclude<Tab, 'scenes'> }) {
           { label: 'Pixel textures', onClick: () => setMany({ uPixelTexture: 1, uEdges: 0.35 }) },
         ]}
       />
+    ) : group === 'Layers' ? (
+      <QuickRow
+        label="Look"
+        items={[
+          { label: 'Painterly', onClick: () => setMany({ uPoster: 0.2, uLayers: 7, uDepthSpread: 1 }) },
+          { label: 'Poster', onClick: () => setMany({ uPoster: 1, uLayers: 5, uDepthSpread: 1.2 }) },
+          { label: 'Deep valley', onClick: () => setMany({ uLayers: 8, uDepthSpread: 1.8 }) },
+          { label: 'Few layers', onClick: () => setMany({ uLayers: 3, uDepthSpread: 0.7 }) },
+        ]}
+      />
     ) : group === 'Camera' ? (
       <QuickRow
         label="Shot"
@@ -157,6 +161,7 @@ function GroupControls({ group }: { group: Exclude<Tab, 'scenes'> }) {
           { label: 'Aerial', onClick: () => setMany({ uFlySpeed: 0.3, uAltitude: 2.5, uPitch: -0.45, uFov: 1.3 }) },
           { label: 'Ground level', onClick: () => setMany({ uFlySpeed: 0.15, uAltitude: 0.12, uPitch: 0.02, uFov: 1.6 }) },
           { label: 'Hold still', onClick: () => setMany({ uFlySpeed: 0 }), active: values.uFlySpeed === 0 },
+          { label: 'Reset position', onClick: () => setMany({ uPan: [0, 0] }) },
           { label: 'Wide lens', onClick: () => setMany({ uFov: 0.9 }) },
         ]}
       />
@@ -205,9 +210,16 @@ export function LandscapePage() {
   const setMode = useLandscape((s) => s.setMode);
   const shader = renderMode(mode);
   const preset = getPreset(shader.presetId)!;
-  const dem = useLandscape((s) => s.dem);
-  const usingDem = values.uTerrainSource === 1 && !!dem;
-  const channels = useMemo<ChannelBinding[]>(() => (usingDem && dem ? [{ assetId: dem.assetId, filter: 'nearest', wrap: 'clamp' }] : []), [usingDem, dem]);
+
+  const viewRef = useRef<HTMLDivElement>(null);
+  const playingRef = useRef(playing);
+  playingRef.current = playing;
+  useEffect(() => {
+    const el = viewRef.current;
+    if (!el) return;
+    const st = useLandscape.getState;
+    return bindNavigation(el, () => !playingRef.current, { values: () => st().values, setLive: (v) => st().setLive(v), checkpoint: () => st().checkpoint(), flat: () => st().mode === 'layered' });
+  }, []);
 
   const togglePlay = () => {
     if (clock.playing) clock.pause();
@@ -227,11 +239,6 @@ export function LandscapePage() {
   const project = () => {
     const base = projectFromPreset(preset);
     base.values = { ...base.values, ...values };
-    if (channels.length) base.channels = [...channels, ...base.channels.slice(1)];
-    if (usingDem && dem) {
-      base.description = `${base.description}\nTerrain: ${dem.label} (${dem.source}).`;
-      base.provenance = { ...base.provenance, notice: `${base.provenance.notice ?? ''}\n\nElevation data: ${dem.attribution}`.trim() };
-    }
     return base;
   };
   const save = async () => {
@@ -240,7 +247,7 @@ export function LandscapePage() {
     if (!name?.trim()) return;
     const p = forkProject(project(), name.trim(), 'user');
     p.category = 'Terrain & Landscape';
-    p.tags = Array.from(new Set([...p.tags, 'landscape-studio', ...(mode === 'blocks' ? ['blocks'] : [])]));
+    p.tags = Array.from(new Set([...p.tags, 'landscape-studio', ...(mode === 'blocks' ? ['blocks'] : mode === 'layered' ? ['layered', '2d'] : [])]));
     const r = rendererRef.current;
     if (r) {
       const img = r.renderToPixels(320, 180);
@@ -260,7 +267,7 @@ export function LandscapePage() {
     else void el?.requestFullscreen?.().catch(() => toast('warn', 'Fullscreen is not available here.'));
   };
 
-  const groupTabs: Tab[] = mode === 'blocks' ? ['Terrain', 'Elevation', 'Vegetation', 'Blocks', 'Water', 'Sky', 'Camera'] : ['Terrain', 'Elevation', 'Vegetation', 'Water', 'Sky', 'Camera'];
+  const groupTabs: Tab[] = ['Terrain', 'Vegetation', ...(mode === 'blocks' ? ['Blocks' as const] : mode === 'layered' ? ['Layers' as const] : []), 'Water', 'Sky', 'Camera'];
   const tabs: Tab[] = mobile ? ['scenes', ...groupTabs] : groupTabs;
   const activeTab: Tab = tabs.includes(tab) ? tab : tabs[mobile ? 1 : 0];
   const scenes = (
@@ -289,13 +296,12 @@ export function LandscapePage() {
   );
 
   const viewport = (
-    <div className="relative h-full min-h-0 bg-black" data-testid="landscape-view">
+    <div ref={viewRef} tabIndex={0} className={`relative h-full min-h-0 bg-black outline-none ${playing ? '' : 'cursor-grab active:cursor-grabbing'}`} data-testid="landscape-view" aria-label="Landscape view. Drag to pan, scroll to zoom, right-drag to turn; arrow keys and +/- also work while still.">
       <ShaderCanvas
         label="Landscape render"
         fragment={shader.source}
         format="shadertoy"
         params={shader.params}
-        channels={channels}
         values={values}
         clock={clock}
         pixelRatio={res}
@@ -306,7 +312,7 @@ export function LandscapePage() {
       />
       {compileError && <div className="absolute inset-x-4 top-4 rounded bg-black/80 p-2 text-xs text-danger">Landscape shader failed to compile: {compileError}</div>}
       <div className="pointer-events-none absolute left-2 top-2 rounded bg-black/50 px-2 py-0.5 font-mono text-2xs text-white/80">
-        {playing ? `${fps} fps` : 'still'} · drag to look
+        {playing ? `${fps} fps · drag to look` : 'still · drag to pan · scroll to zoom · right-drag to turn'}
       </div>
       <div className="absolute inset-x-2 bottom-2 flex flex-wrap items-center gap-1 rounded-lg bg-black/60 px-2 py-1 text-white backdrop-blur">
         <button className="rounded p-1.5 hover:bg-white/15" onClick={togglePlay} aria-label={playing ? 'Pause' : 'Animate'} title={playing ? 'Pause flight & waves (render only on changes)' : 'Animate flight & waves (uses the GPU continuously)'}>
@@ -367,9 +373,9 @@ export function LandscapePage() {
               className={`flex items-center gap-1 rounded px-2 py-0.5 text-xs ${mode === m.id ? 'bg-accent text-black' : 'text-muted hover:text-fg'}`}
               onClick={() => setMode(m.id)}
               data-testid={`mode-${m.id}`}
-              title={m.id === 'blocks' ? 'Blocky voxel world with pixel-art textures' : 'Smooth raymarched terrain and water'}
+              title={m.id === 'blocks' ? 'Blocky voxel world with pixel-art textures' : m.id === 'layered' ? 'Flat 2D parallax layers — very light on the GPU' : 'Smooth raymarched terrain and water'}
             >
-              {m.id === 'blocks' ? <Box size={12} /> : <Mountain size={12} />}
+              {m.id === 'blocks' ? <Box size={12} /> : m.id === 'layered' ? <Layers size={12} /> : <Mountain size={12} />}
               {m.label}
             </button>
           ))}

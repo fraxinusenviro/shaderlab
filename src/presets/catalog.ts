@@ -16,12 +16,14 @@ import inferno from './shaders/inferno.glsl?raw';
 import julia from './shaders/julia.glsl?raw';
 import landscape from './shaders/landscape.glsl?raw';
 import voxel from './shaders/voxel.glsl?raw';
+import layered from './shaders/layered.glsl?raw';
 import kaleido from './shaders/kaleido.glsl?raw';
 import lens from './shaders/lens.glsl?raw';
 import liquid from './shaders/liquid.glsl?raw';
 import mandelbrot from './shaders/mandelbrot.glsl?raw';
 import plasma from './shaders/plasma.glsl?raw';
 import fluidAmber from './shaders/radiant-fluid-amber.glsl?raw';
+import { RADIANT_EFFECTS, radiantSource } from './radiant';
 import sdf from './shaders/sdf.glsl?raw';
 import sparks from './shaders/sparks.glsl?raw';
 import starfield from './shaders/starfield.glsl?raw';
@@ -54,6 +56,8 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.`;
 
+/** Category for the lightweight flat 2D effects ported from Radiant. */
+export const RADIANT_CATEGORY = 'Lightweight 2D (Radiant)';
 export const MIT_RADIANT = MIT_GL_TRANSITIONS.replace('2017-present gl-transitions contributors', '2025 Paul Bakaus');
 
 const transitionChannels: ChannelBinding[] = [
@@ -70,6 +74,7 @@ export const PRESETS: PresetDef[] = [
   { id: 'terrain', name: 'Ridge Flyover', category: 'Terrain & Landscape', theme: 'Earth', description: 'Raymarched ridged-noise mountains with snow, fog and sun.', tags: ['terrain', 'raymarch', 'earth'], format: 'shadertoy', fragment: terrain, ...SF },
   { id: 'landscape', name: 'Landscape Studio', category: 'Terrain & Landscape', theme: 'Earth', description: 'Procedural raymarched terrain and water: mountains, hills, islands, canyons, dunes; waves, foam, sky, clouds and a flyover camera. Also available as the dedicated Landscape studio.', tags: ['terrain', 'water', 'raymarch', 'landscape', 'ocean'], format: 'shadertoy', fragment: landscape, ...SF },
   { id: 'voxel', name: 'Block World', category: 'Terrain & Landscape', theme: 'Geometry', description: 'The Landscape Studio worlds rebuilt from cubes: DDA voxel tracing, pixel-art block textures, trees, translucent water, square sun and blocky clouds. Also the "Blocks" style in the Landscape studio.', tags: ['voxel', 'blocks', 'terrain', 'water', 'pixel-art'], format: 'shadertoy', fragment: voxel, ...SF },
+  { id: 'layered', name: 'Layered Landscape', category: 'Terrain & Landscape', theme: 'Earth', description: 'The Landscape Studio worlds as flat 2D parallax layers (the Radiant approach): noise ridges, tree silhouettes, haze, water, sun and clouds. A fraction of the cost of the raymarched styles. Also the "Layered 2D" style in the Landscape studio.', tags: ['terrain', 'water', '2d', 'parallax', 'lightweight', 'landscape'], format: 'shadertoy', fragment: layered, ...SF },
   { id: 'strata', name: 'Topographic Strata', category: 'Terrain & Landscape', theme: 'Earth', description: 'Contour-line map over warped noise (conventional GLSL ES 1.00 main()).', tags: ['terrain', 'contours', 'earth', 'standard'], format: 'standard', fragment: strata, ...SF },
   { id: 'turbulence', name: 'Domain Turbulence', category: 'Noise & Turbulence', description: 'Two-level domain-warped fBm with octave, lacunarity and gain controls.', tags: ['noise', 'fbm', 'warp'], format: 'shadertoy', fragment: turbulence, ...SF },
   { id: 'cells', name: 'Cellular Colony', category: 'Organic & Biological', description: 'Wobbling Voronoi cells with membranes and nuclei.', tags: ['voronoi', 'organic', 'cells'], format: 'shadertoy', fragment: cells, ...SF },
@@ -113,6 +118,21 @@ export const PRESETS: PresetDef[] = [
     tags: ['noise', 'radiant', 'organic', 'standard'], format: 'standard', fragment: fluidAmber,
     author: 'Paul Bakaus (Radiant); simplex noise after Ashima Arts / Stefan Gustavson', license: 'MIT', sourceUrl: 'https://github.com/pbakaus/radiant/blob/main/static/fluid-amber.html', notice: MIT_RADIANT,
   },
+  ...RADIANT_EFFECTS.map(
+    (e): PresetDef => ({
+      id: `radiant-${e.id}`,
+      name: e.title,
+      category: RADIANT_CATEGORY,
+      description: e.description,
+      tags: ['radiant', 'lightweight', '2d', ...e.tags],
+      format: 'standard',
+      fragment: radiantSource(e.id),
+      author: 'Paul Bakaus (Radiant)',
+      license: 'MIT',
+      sourceUrl: `https://github.com/pbakaus/radiant/blob/main/static/${e.id}.html`,
+      notice: MIT_RADIANT,
+    }),
+  ),
 ];
 
 export const PRESET_CATEGORIES = Array.from(new Set(PRESETS.map((p) => p.category)));

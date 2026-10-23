@@ -36,9 +36,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-## Radiant — `src/presets/shaders/radiant-fluid-amber.glsl`
+## Radiant — `src/presets/shaders/radiant-fluid-amber.glsl`, `src/presets/shaders/radiant/*.glsl`
 
-*Fluid Amber* by Paul Bakaus, from https://github.com/pbakaus/radiant/blob/main/static/fluid-amber.html (a WebGL shader; Radiant's Canvas 2D effects were not used). Adapted: the fragment shader was extracted from the HTML page and `@param` annotations were added (ranges from Radiant's `src/lib/shaders.ts`). The `snoise` simplex-noise function follows Ashima Arts / Stefan Gustavson's webgl-noise (MIT).
+*Fluid Amber* by Paul Bakaus, from https://github.com/pbakaus/radiant/blob/main/static/fluid-amber.html (a WebGL shader; Radiant's Canvas 2D effects were not used), and 32 further Radiant WebGL effects in `src/presets/shaders/radiant/` (each file names its source page, e.g. https://github.com/pbakaus/radiant/blob/main/static/vortex.html). Adapted the same way; `painted-strata.glsl` also normalises `u_mouse` in-shader. Adapted: the fragment shader was extracted from the HTML page and `@param` annotations were added (ranges from Radiant's `src/lib/shaders.ts`). The `snoise` simplex-noise function follows Ashima Arts / Stefan Gustavson's webgl-noise (MIT).
 
 ```
 MIT License
@@ -64,10 +64,6 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-## Elevation data — Natural Resources Canada CanElevation (HRDEM / MRDEM)
-
-Not bundled: fetched at runtime when the user loads elevation data in the Landscape studio. Contains information licensed under the Open Government Licence – Canada (https://open.canada.ca/en/open-government-licence-canada). Source: Natural Resources Canada, High Resolution Digital Elevation Model (HRDEM) and Medium Resolution DEM (MRDEM), CanElevation Series. Saved projects using this data carry the attribution in their description and provenance.
-
 ## npm dependencies
 
-Runtime dependencies (React, Zustand, Dexie, JSZip, CodeMirror, Lucide, Workbox, geotiff.js) are installed from npm under their own licences (MIT, ISC, Apache-2.0; geotiff.js is MIT; JSZip is dual MIT/GPLv3 and used under MIT); see `package-lock.json` and each package's licence file.
+Runtime dependencies (React, Zustand, Dexie, JSZip, CodeMirror, Lucide, Workbox) are installed from npm under their own licences (MIT, ISC, Apache-2.0; JSZip is dual MIT/GPLv3 and used under MIT); see `package-lock.json` and each package's licence file.
