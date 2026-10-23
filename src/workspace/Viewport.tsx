@@ -28,12 +28,19 @@ export function bindPointer(canvas: HTMLCanvasElement, getRenderer: () => Shader
     const [x, y] = toPx(e);
     rr.mouse = [x, y, x, y];
     rr.pointer = [x, y];
+    rr.pointerRefWidth = canvas.width;
     rr.requestRender();
   };
   const onMove = (e: PointerEvent) => {
     const rr = getRenderer();
     if (!rr) return;
+    // Hover alone only needs a redraw if the shader reads the hover position.
+    if (!down && !rr.usesHover) return;
     const [x, y] = toPx(e);
+    // Re-express the stored press position at the current buffer size (adaptive resolution changes it).
+    const k = canvas.width / Math.max(1, rr.pointerRefWidth || canvas.width);
+    if (k !== 1) for (let i = 0; i < 4; i++) rr.mouse[i] *= k;
+    rr.pointerRefWidth = canvas.width;
     rr.pointer = [x, y];
     if (down) {
       rr.mouse[0] = x;
@@ -154,9 +161,9 @@ export function Viewport({ mobile = false }: { mobile?: boolean }) {
     if (!r) return;
     // Mobile GPUs: keep the default drawing buffer well below full device resolution.
     const maxPixels = mobile ? Math.min(settings.maxPixels, 1.2e6) : settings.maxPixels;
-    r.settings = { pixelRatio: settings.pixelRatio, maxPixels, fpsCap: settings.fpsCap };
+    r.settings = { pixelRatio: settings.pixelRatio, maxPixels, fpsCap: settings.fpsCap, adaptive: settings.adaptiveResolution };
     r.requestRender();
-  }, [settings.pixelRatio, settings.maxPixels, settings.fpsCap, mobile, settings.preferWebGL2]);
+  }, [settings.pixelRatio, settings.maxPixels, settings.fpsCap, settings.adaptiveResolution, mobile, settings.preferWebGL2]);
 
   // Keep local play state in sync when the clock is changed elsewhere (shortcuts, safeguards).
   useEffect(() => {

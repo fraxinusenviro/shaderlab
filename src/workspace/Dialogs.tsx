@@ -285,6 +285,11 @@ export function SettingsDialog() {
           <Field label={`Max render pixels · ${(s.maxPixels / 1e6).toFixed(1)} MP`} hint="GPU safeguard: the drawing buffer is scaled down beyond this.">
             <input type="range" min={0.25e6} max={8.3e6} step={0.25e6} value={s.maxPixels} onChange={(e) => s.set({ maxPixels: Number(e.target.value) })} style={{ ['--fill' as string]: `${(s.maxPixels / 8.3e6) * 100}%` }} />
           </Field>
+          <Toggle
+            checked={s.adaptiveResolution}
+            onChange={(v) => s.set({ adaptiveResolution: v })}
+            label="Adaptive resolution (render at lower resolution while animating or dragging to hold ~30 fps; sharpen when still)"
+          />
           <Field label="Frame-rate cap">
             <select className="input" value={s.fpsCap} onChange={(e) => s.set({ fpsCap: Number(e.target.value) })}>
               {[0, 15, 24, 30, 60].map((f) => (

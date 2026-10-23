@@ -188,12 +188,18 @@ export function LandscapePage() {
   const canUndo = useLandscape((s) => s.history.length > 0);
   const { applyScene, setMany, undo } = useLandscape.getState();
   const [tab, setTab] = useState<Tab>(mobile ? 'scenes' : 'Terrain');
-  const [playing, setPlaying] = useState(true);
-  const [res, setRes] = useState(() => Math.min(0.75, useSettings.getState().pixelRatio));
+  const [playing, setPlaying] = useState(() => useSettings.getState().landscapeAnimate);
+  const [res, setRes] = useState(() => Math.min(0.5, useSettings.getState().pixelRatio));
   const [exportSize, setExportSize] = useState('1920x1080');
   const [compileError, setCompileError] = useState<string | null>(null);
   const [fps, setFps] = useState(0);
-  const clock = useMemo(() => new Clock(), []);
+  const clock = useMemo(() => {
+    // Still by default: the view is only redrawn when something changes.
+    const c = new Clock();
+    c.time = 3;
+    if (!useSettings.getState().landscapeAnimate) c.pause();
+    return c;
+  }, []);
   const rendererRef = useRef<ShaderRenderer | null>(null);
   const mode = useLandscape((s) => s.mode);
   const setMode = useLandscape((s) => s.setMode);
@@ -207,6 +213,7 @@ export function LandscapePage() {
     if (clock.playing) clock.pause();
     else clock.play();
     setPlaying(clock.playing);
+    useSettings.getState().set({ landscapeAnimate: clock.playing });
   };
   const exportPng = async () => {
     const r = rendererRef.current;
@@ -292,17 +299,17 @@ export function LandscapePage() {
         values={values}
         clock={clock}
         pixelRatio={res}
-        maxPixels={mobile ? 0.5e6 : 2.2e6}
+        maxPixels={mobile ? 0.5e6 : 1.6e6}
         onRenderer={(r) => (rendererRef.current = r)}
         onCompile={(o) => setCompileError(o.ok ? null : o.diagnostics.find((d) => d.severity === 'error')?.message ?? 'error')}
         onStats={(s) => setFps(Math.round(s.fps))}
       />
       {compileError && <div className="absolute inset-x-4 top-4 rounded bg-black/80 p-2 text-xs text-danger">Landscape shader failed to compile: {compileError}</div>}
       <div className="pointer-events-none absolute left-2 top-2 rounded bg-black/50 px-2 py-0.5 font-mono text-2xs text-white/80">
-        {playing ? `${fps} fps` : 'paused'} · drag to look
+        {playing ? `${fps} fps` : 'still'} · drag to look
       </div>
       <div className="absolute inset-x-2 bottom-2 flex flex-wrap items-center gap-1 rounded-lg bg-black/60 px-2 py-1 text-white backdrop-blur">
-        <button className="rounded p-1.5 hover:bg-white/15" onClick={togglePlay} aria-label={playing ? 'Pause' : 'Play'} title={playing ? 'Pause flight & waves' : 'Play'}>
+        <button className="rounded p-1.5 hover:bg-white/15" onClick={togglePlay} aria-label={playing ? 'Pause' : 'Animate'} title={playing ? 'Pause flight & waves (render only on changes)' : 'Animate flight & waves (uses the GPU continuously)'}>
           {playing ? <Pause size={15} /> : <Play size={15} />}
         </button>
         <button className="rounded p-1.5 hover:bg-white/15 disabled:opacity-30" onClick={undo} disabled={!canUndo} aria-label="Undo" title="Undo last change">

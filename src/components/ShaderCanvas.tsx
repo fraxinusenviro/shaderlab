@@ -74,9 +74,9 @@ export function ShaderCanvas(props: ShaderCanvasProps) {
   useEffect(() => {
     const renderer = r.current;
     if (!renderer) return;
-    renderer.settings = { pixelRatio: props.pixelRatio ?? settings.pixelRatio, maxPixels: props.maxPixels ?? settings.maxPixels, fpsCap: settings.fpsCap };
+    renderer.settings = { pixelRatio: props.pixelRatio ?? settings.pixelRatio, maxPixels: props.maxPixels ?? settings.maxPixels, fpsCap: settings.fpsCap, adaptive: settings.adaptiveResolution };
     renderer.requestRender();
-  }, [props.pixelRatio, props.maxPixels, settings.pixelRatio, settings.maxPixels, settings.fpsCap, props.clock, preferWebGL2]);
+  }, [props.pixelRatio, props.maxPixels, settings.pixelRatio, settings.maxPixels, settings.fpsCap, settings.adaptiveResolution, props.clock, preferWebGL2]);
 
   useEffect(() => {
     const renderer = r.current;

@@ -42,7 +42,22 @@ export interface RendererSettings {
   maxPixels: number;
   /** 0 = uncapped. */
   fpsCap: number;
+  /**
+   * Adaptive resolution: while animating or interacting, lower the drawing
+   * buffer resolution to hold ~30 fps, then draw one full-resolution frame
+   * once the view has been still for a moment.
+   */
+  adaptive?: boolean;
 }
+
+/** Lowest adaptive scale (fraction of the configured resolution, per axis). */
+const MIN_ADAPTIVE_SCALE = 0.35;
+/** Frame interval the adaptive scale aims for (ms). */
+const ADAPTIVE_TARGET_MS = 34;
+/** Redraws closer together than this count as continuous motion (ms). */
+const MOTION_GAP_MS = 1500;
+/** Stillness before the full-resolution frame (ms). */
+const SHARPEN_DELAY_MS = 220;
 
 export interface ShaderInput {
   fragment: string;
@@ -120,6 +135,12 @@ export class ShaderRenderer {
   private frameMsEma = 0;
   private lastStats = 0;
   private dirty = true;
+  /** Current adaptive resolution scale (1 = configured resolution). */
+  private dynScale = 1;
+  /** Scale used for the frame currently on screen. */
+  private drawnScale = 1;
+  /** Time of the last frame that was part of continuous motion. */
+  private lastMotion = 0;
   private slowCount = 0;
   private lostTimes: number[] = [];
   private contextLost = false;
@@ -127,6 +148,8 @@ export class ShaderRenderer {
   mouse = [0, 0, 0, 0];
   /** Position of the pointer over the canvas in drawing-buffer pixels (for u_mouse/mouse). */
   pointer = [0, 0];
+  /** Drawing-buffer width that `mouse`/`pointer` were recorded at (0 = the current one). */
+  pointerRefWidth = 0;
   private resizeObserver: ResizeObserver | null = null;
   private fixedSize: { w: number; h: number } | null = null;
 
@@ -330,7 +353,7 @@ export class ShaderRenderer {
     if (this.fixedSize) {
       ({ w, h } = this.fixedSize);
     } else {
-      const dpr = (typeof window !== 'undefined' ? window.devicePixelRatio : 1) * this.settings.pixelRatio;
+      const dpr = (typeof window !== 'undefined' ? window.devicePixelRatio : 1) * this.settings.pixelRatio * this.drawnScale;
       w = Math.max(1, Math.round(c.clientWidth * dpr));
       h = Math.max(1, Math.round(c.clientHeight * dpr));
       const px = w * h;
@@ -374,15 +397,44 @@ export class ShaderRenderer {
     this.dirty = true;
   }
 
+  /** True when the current program reads the hover position (so pointer moves need a redraw). */
+  get usesHover(): boolean {
+    const u = this.current?.uniforms;
+    return !!u && (u.has('u_mouse') || u.has('uMouse') || u.has('mouse'));
+  }
+
+  /** Resolution scale of the frame on screen (below 1 while adaptive resolution is active). */
+  get resolutionScale(): number {
+    return this.drawnScale;
+  }
+
   private tick(now: number): void {
     const cap = this.settings.fpsCap;
     if (cap > 0 && now - this.lastDraw < 1000 / cap - 1) return;
     const advanced = this.clock.advance(now);
+    const adaptive = !!this.settings.adaptive && !this.fixedSize;
     if (!advanced && !this.dirty) {
-      this.emitStats(now, false);
+      // Still: replace a reduced-resolution frame with a full one.
+      if (adaptive && this.drawnScale < 1 && now - this.lastDraw > SHARPEN_DELAY_MS) {
+        this.drawnScale = 1;
+        this.lastDraw = now;
+        this.draw();
+        this.onFrame?.();
+        this.emitStats(now, true);
+      } else this.emitStats(now, false);
       return;
     }
     const interval = this.lastDraw ? now - this.lastDraw : 16;
+    // Frames that follow each other closely are motion (playback, dragging, slider scrubbing).
+    const moving = advanced || now - this.lastMotion < MOTION_GAP_MS;
+    this.lastMotion = now;
+    if (adaptive) {
+      if (moving && interval < MOTION_GAP_MS) {
+        if (interval > ADAPTIVE_TARGET_MS * 1.3) this.dynScale = Math.max(MIN_ADAPTIVE_SCALE, this.dynScale * Math.sqrt(ADAPTIVE_TARGET_MS / interval));
+        else if (interval < ADAPTIVE_TARGET_MS * 0.75) this.dynScale = Math.min(1, this.dynScale * 1.06);
+      }
+      this.drawnScale = moving ? this.dynScale : 1;
+    } else this.drawnScale = 1;
     this.lastDraw = now;
     const t0 = performance.now();
     this.draw();
@@ -471,7 +523,8 @@ export class ShaderRenderer {
       }
     }
     for (const n of ['iResolution', 'resolution', 'u_resolution', 'u_res', 'uResolution']) setRes(n);
-    const sx = this.fixedSize ? w / Math.max(1, this.canvas.width) : 1;
+    // Pointer coordinates are kept in the buffer size they were recorded at; rescale to this frame's size.
+    const sx = w / Math.max(1, this.pointerRefWidth || this.canvas.width);
     const im = u.get('iMouse');
     if (im) gl.uniform4f(im.loc, this.mouse[0] * sx, this.mouse[1] * sx, this.mouse[2] * sx, this.mouse[3] * sx);
     for (const n of ['u_mouse', 'uMouse']) {
@@ -479,7 +532,7 @@ export class ShaderRenderer {
       if (x && x.type === gl.FLOAT_VEC2) gl.uniform2f(x.loc, this.pointer[0] * sx, this.pointer[1] * sx);
     }
     const m = u.get('mouse');
-    if (m && m.type === gl.FLOAT_VEC2) gl.uniform2f(m.loc, this.pointer[0] / Math.max(1, this.canvas.width), this.pointer[1] / Math.max(1, this.canvas.height));
+    if (m && m.type === gl.FLOAT_VEC2) gl.uniform2f(m.loc, (this.pointer[0] * sx) / Math.max(1, w), (this.pointer[1] * sx) / Math.max(1, h));
     const date = u.get('iDate');
     if (date) {
       const d = new Date();

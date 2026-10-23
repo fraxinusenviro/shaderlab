@@ -96,8 +96,8 @@ test('landscape studio: vegetation generator', async ({ page }) => {
   await lowRes(page);
   await page.goto('./#/landscape');
   await expect(page.getByTestId('landscape')).toBeVisible();
-  // Paused, the viewport only redraws on changes (software GL starves the UI otherwise).
-  await page.getByRole('button', { name: 'Pause' }).click();
+  // The studio starts still: the viewport only redraws on changes.
+  await expect(page.getByRole('button', { name: 'Animate' })).toBeVisible();
   const state = () => page.evaluate(() => JSON.parse(localStorage.getItem('shader-forge:landscape') ?? '{}').state);
   await page.getByRole('tab', { name: 'Vegetation' }).click();
   await page.getByTestId('biome-autumn').click();
@@ -186,7 +186,8 @@ test('landscape studio: elevation data from a GeoTIFF', async ({ page }) => {
   await page.goto('./#/landscape');
   await expect(page.getByTestId('landscape')).toBeVisible();
   const state = () => page.evaluate(() => JSON.parse(localStorage.getItem('shader-forge:landscape') ?? '{}').state);
-  await page.getByRole('button', { name: 'Pause' }).click();
+  // The studio starts still: the viewport only redraws on changes.
+  await expect(page.getByRole('button', { name: 'Animate' })).toBeVisible();
   await page.getByRole('tab', { name: 'Elevation' }).click();
   await expect(page.getByTestId('elevation-panel')).toBeVisible();
   await expect(page.getByTestId('dem-place').first()).toBeVisible();
@@ -212,4 +213,37 @@ test('landscape studio: elevation data from a GeoTIFF', async ({ page }) => {
   await waitFor(page, () => (window as any).__shaderForge.workspace.getState().compile.status === 'ok', undefined, 60_000);
   expect(await ws(page, 'ws.project.values.uTerrainSource')).toBe(1);
   expect(await ws(page, 'ws.project.channels?.[0]?.assetId ?? null')).toMatch(/^dem_/);
+});
+
+test('landscape studio: renders on demand, adaptive resolution while dragging', async ({ page }) => {
+  test.setTimeout(150_000);
+  await lowRes(page);
+  await page.goto('./#/landscape');
+  const canvas = page.getByTestId('shader-canvas');
+  await expect(canvas).toBeVisible();
+  // Still by default.
+  await expect(page.getByRole('button', { name: 'Animate' })).toBeVisible();
+  await expect(page.getByTestId('landscape-view')).toContainText('still');
+  const width = () => canvas.evaluate((c: HTMLCanvasElement) => c.width);
+  await expect.poll(width).toBeGreaterThan(50);
+  const full = await width();
+  // Dragging is continuous motion: on a slow (software) GPU the buffer shrinks...
+  const box = (await canvas.boundingBox())!;
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  let smallest = full;
+  for (let i = 0; i < 25; i++) {
+    await page.mouse.move(box.x + box.width / 2 + (i % 2 ? 40 : -40), box.y + box.height / 2);
+    smallest = Math.min(smallest, await width());
+  }
+  await page.mouse.up();
+  expect(smallest).toBeLessThan(full);
+  // ...and is restored to full resolution once the view is still.
+  await expect.poll(width, { timeout: 30_000 }).toBe(full);
+  // Animation is opt-in and remembered.
+  await page.getByRole('button', { name: 'Animate' }).click();
+  await expect(page.getByRole('button', { name: 'Pause' })).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole('button', { name: 'Pause' })).toBeVisible();
+  await page.getByRole('button', { name: 'Pause' }).click();
 });

@@ -10,6 +10,10 @@ export interface Settings {
   maxPixels: number;
   /** 0 = uncapped. */
   fpsCap: number;
+  /** Lower the resolution while animating/interacting; sharpen when still. */
+  adaptiveResolution: boolean;
+  /** Animate the Landscape studio (flight and waves); off = render only on changes. */
+  landscapeAnimate: boolean;
   thumbQuality: 'low' | 'medium' | 'high';
   autoCompile: boolean;
   compileDelay: number;
@@ -28,6 +32,8 @@ export const DEFAULT_SETTINGS: Settings = {
   pixelRatio: 1,
   maxPixels: 2560 * 1440,
   fpsCap: 0,
+  adaptiveResolution: true,
+  landscapeAnimate: false,
   thumbQuality: 'medium',
   autoCompile: true,
   compileDelay: 350,

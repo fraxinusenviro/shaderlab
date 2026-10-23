@@ -46,6 +46,17 @@ Choose which one opens at launch in *Settings → Start page*; installed PWAs al
 
 ---
 
+## Performance
+
+Everything is drawn by fragment shaders, so the cost is roughly *pixels × work per pixel*. The 3D landscapes are ray-marched (each pixel steps through terrain, trees, water, clouds and shadows), which is far heavier than flat 2D effects, so Shader Forge keeps the GPU idle whenever it can:
+
+- **Render on demand** — the Landscape studio starts *still*: nothing is redrawn until you change a setting or drag the view. *Animate* (▶ in the viewport bar) turns on flight and waves; the choice is remembered.
+- **Adaptive resolution** (Settings → Rendering, on by default) — while animating, dragging or scrubbing sliders, the drawing buffer is scaled down (to as little as 35 % per axis) to hold about 30 fps; once the view is still, a single full-resolution frame replaces it.
+- **No hover redraws** — moving the mouse over a canvas only triggers a redraw for shaders that actually read the hover position.
+- **Manual controls** — preview resolution (default 50 % of the display's pixel density in the studio), render quality (Draft/Balanced/High: march steps, shadows, reflections, vegetation detail), max render pixels and a frame-rate cap.
+
+On a slow GPU: keep the studio still, choose *Draft* quality and 35 % resolution, and turn off generated trees for elevation models.
+
 ## Quick start
 
 ```bash

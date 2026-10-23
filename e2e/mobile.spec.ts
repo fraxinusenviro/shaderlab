@@ -32,7 +32,8 @@ test('mobile landscape studio: stacked viewport and tabbed controls', async ({ p
   await page.goto('./#/landscape');
   await expect(page.getByTestId('shader-canvas')).toBeVisible();
   await expect(page.getByTestId('scene-card').first()).toBeVisible();
-  await page.getByRole('button', { name: 'Pause' }).click();
+  // The studio starts still: the viewport only redraws on changes.
+  await expect(page.getByRole('button', { name: 'Animate' })).toBeVisible();
   await page.getByRole('tab', { name: 'Sky' }).click();
   await page.getByRole('button', { name: 'Night' }).click();
   const v = await page.evaluate(() => JSON.parse(localStorage.getItem('shader-forge:landscape') ?? '{}').state.values.uSunElevation);
