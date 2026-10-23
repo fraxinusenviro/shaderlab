@@ -1,6 +1,6 @@
 # Test record
 
-## Automated results (local run, 2026-10-22, after adding the Viewer, Landscape studio and Blocks style)
+## Automated results (local run, 2026-10-23, after adding Layered 2D, the Radiant effects and still-mode navigation)
 
 Environment: Node 22.22, Chromium (Playwright 1.56, SwiftShader software WebGL), Linux.
 
@@ -8,9 +8,9 @@ Environment: Node 22.22, Chromium (Playwright 1.56, SwiftShader software WebGL),
 | --- | --- | --- |
 | TypeScript | `npm run typecheck` | ✅ no errors |
 | ESLint | `npm run lint` | ✅ no errors or warnings |
-| Unit tests | `npm test` | ✅ 89 / 89 passed (7 files) |
-| Production build at `/shaderlab/` | `BASE_PATH=/shaderlab/ npm run build` | ✅ built; Workbox precache of 17 entries (~1.7 MB) |
-| End-to-end smoke | `npm run test:e2e` | ✅ 21 / 21 passed (19 desktop, 2 mobile/Pixel 7) |
+| Unit tests | `npm test` | ✅ 152 / 152 passed |
+| Production build at `/shaderlab/` | `BASE_PATH=/shaderlab/ npm run build` | ✅ built; Workbox precache of 18 entries (~2.1 MB) |
+| End-to-end smoke | `npm run test:e2e` | ✅ 26 / 26 after one fix (24 desktop, 2 mobile/Pixel 7); the crash-recovery test was made deterministic (see below) and passed 5 / 5 repeats |
 
 Additional manual/scripted verification during development:
 
@@ -21,6 +21,7 @@ Additional manual/scripted verification during development:
 - Vegetation realism (2026-10-23): close-up and distant renders of the Realistic style were reviewed before/after reshaping trees (spruce tiers, multi-lobe broadleaf crowns, self-occlusion, wrapped and back-lighting, muted foliage/grass colours) and with the *Plants* switch off, in both Realistic and Blocks styles.
 - Radiant effects: all 32 ported shaders were compiled and rendered offscreen under WebGL 2 and WebGL 1 (192×108, t = 6 s) and a contact sheet reviewed; one candidate (*Shattered Plains*) was dropped because its source is assembled by nested JavaScript and expects a normalised mouse. Per-frame cost under SwiftShader was 30–440 ms at that size versus ~1.2 s for the ray-marched landscape.
 - Layered 2D landscape: all nine scenes rendered and reviewed; ~0.25–0.45 s per 480×270 frame under SwiftShader versus ~5–6 s for the Realistic style. Terrain profiles mirror the 3D terrain types; slope shading is taken from a smoothed ridge to avoid streaks.
+- Crash-recovery test: it reloaded after a fixed 2 s wait, but the 1.2 s autosave can be delayed past that under a software GPU, and IndexedDB writes issued during `pagehide` are not guaranteed to commit — so it was intermittently red (seen in CI). It now polls the *committed* session over a raw IndexedDB connection before reloading (Dexie's in-page cache can report a write early, and `waitForFunction` does not await a returned promise).
 - Found and fixed via e2e: a stale hash route re-opened the previous shader after a library click; React selector returning fresh arrays caused a render loop.
 
 ## Deployment status

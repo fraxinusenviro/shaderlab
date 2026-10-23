@@ -143,7 +143,26 @@ test.describe('persistence & files', () => {
   test('unsaved edits are recovered after an interrupted session', async ({ page }) => {
     await boot(page);
     await ws(page, 'ws.setFragment(ws.project.fragment + "\\n// recovered-marker\\n")');
-    await page.waitForTimeout(2000); // autosave debounce
+    // Wait until the autosaved session is *committed* to IndexedDB, then "crash". Read it over a
+    // separate raw connection: Dexie's in-page cache can report a write before it has committed.
+    const committed = () =>
+      page.evaluate(
+        () =>
+          new Promise<boolean>((resolve) => {
+            const open = indexedDB.open('shader-forge');
+            open.onerror = () => resolve(false);
+            open.onsuccess = () => {
+              const db = open.result;
+              const get = db.transaction('session', 'readonly').objectStore('session').get('workspace');
+              get.onsuccess = () => {
+                db.close();
+                resolve(!!get.result?.dirty && String(get.result.project.fragment).includes('recovered-marker'));
+              };
+              get.onerror = () => resolve(false);
+            };
+          }),
+      );
+    await expect.poll(committed, { timeout: 60_000 }).toBe(true);
     await page.reload();
     await waitFor(page, () => (window as any).__shaderForge?.workspace.getState().project?.fragment.includes('recovered-marker'));
     await expect(page.getByText('Recovered unsaved changes')).toBeVisible();
